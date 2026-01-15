@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 2.3 - Gestão Completa</title>
+    <title>Dashboard NPS 2.4 - Design Moderno</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -18,7 +18,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
@@ -37,12 +37,22 @@
         th:hover .sort-icon { opacity: 1; }
         
         /* Product Selection Styles */
-        .btn-prod { transition: all 0.2s; border: 2px solid transparent; opacity: 0.5; filter: grayscale(0.8); }
-        .btn-prod:hover { opacity: 0.8; filter: grayscale(0); }
+        .btn-prod { transition: all 0.2s; border: 2px solid transparent; opacity: 0.6; filter: grayscale(0.8); }
+        .btn-prod:hover { opacity: 0.9; filter: grayscale(0); }
         .btn-prod.selected { opacity: 1; filter: grayscale(0); transform: scale(1.02); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         
         .btn-hdi.selected { border-color: #16a34a; background-color: #f0fdf4; color: #15803d; }
         .btn-yelum.selected { border-color: #ca8a04; background-color: #fefce8; color: #a16207; }
+
+        /* Login Background Animation */
+        @keyframes gradient-xy {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        .animate-gradient {
+            background-size: 200% 200%;
+            animation: gradient-xy 6s ease infinite;
+        }
     </style>
 
     <!-- Módulo Único de Aplicação (Lógica + Firebase) -->
@@ -502,12 +512,37 @@
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden">
 
     <!-- Login Modal -->
-    <div id="loginModal" class="fixed inset-0 bg-indigo-900 z-[60] flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center animate-fade-in">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">Acesso ao Sistema</h2>
-            <input type="text" id="loginName" placeholder="Seu Nome" class="w-full border p-3 rounded-lg mb-4 text-center">
-            <input type="password" id="loginPin" placeholder="PIN (4 dígitos)" maxlength="4" class="w-full border p-3 rounded-lg mb-4 text-center">
-            <button onclick="performLogin()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg">Entrar</button>
+    <div id="loginModal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900">
+        <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 24px 24px;"></div>
+        <div class="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl w-full max-w-md p-8 text-center animate-fade-in relative z-10 border border-white/20">
+            <div class="mb-8">
+                <div class="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+                    <i data-lucide="shield-check" class="h-10 w-10 text-indigo-600"></i>
+                </div>
+                <h2 class="text-3xl font-extrabold text-gray-800 tracking-tight">Acesso ao Dashboard</h2>
+                <p class="text-gray-500 mt-2 text-sm font-medium">Gestão de Qualidade & NPS</p>
+            </div>
+            <div class="space-y-5 text-left">
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <i data-lucide="user" class="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
+                    </div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Analista</label>
+                    <input type="text" id="loginName" placeholder="Seu Nome Completo" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:border-transparent transition-all shadow-sm font-medium">
+                </div>
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none mt-6">
+                        <i data-lucide="key-round" class="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
+                    </div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Código de Acesso</label>
+                    <input type="password" id="loginPin" maxlength="4" placeholder="••••" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:border-transparent transition-all shadow-sm text-lg tracking-widest font-bold">
+                </div>
+                <button onclick="performLogin()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 mt-4">
+                    <span>Entrar no Sistema</span>
+                    <i data-lucide="arrow-right" class="h-5 w-5"></i>
+                </button>
+            </div>
+            <p class="mt-8 text-xs text-gray-400">Ambiente Seguro • Versão 2.4</p>
         </div>
     </div>
 
@@ -628,8 +663,8 @@
             <div class="flex items-center space-x-3">
                 <div class="bg-indigo-700 p-2 rounded-lg"><i data-lucide="cloud" class="h-6 w-6 text-green-400"></i></div>
                 <div>
-                    <h1 class="text-lg font-bold tracking-wide">Acompanhamento NPS</h1>
-                    <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online - v1.0 (BETA)</p>
+                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 2.3</h1>
+                    <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
                 </div>
             </div>
             <div class="flex items-center space-x-3">
