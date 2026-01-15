@@ -56,25 +56,25 @@
 
         // --- Estado Global ---
         let app, auth, db;
-        let npsData = []; // Única fonte de verdade dos dados
+        let npsData = []; // Fonte de dados
         let currentAnalista = localStorage.getItem('nps_user_name') || "";
         let selectedIds = new Set();
-        let visibleItems = 5;
+        let visibleItems = 10; // Aumentado para melhor visualização inicial
         let chartInstances = {};
         let activeChartFilter = null;
         let selectedRecordId = null;
         const COLLECTION_NAME = "nps_records";
-        const RISK_KEYWORDS = ['procon', 'advogado', 'justiça', 'ameaça', 'reclame aqui', 'susep'];
+        const RISK_KEYWORDS = ['procon', 'advogado', 'justiça', 'ameaça', 'reclame aqui', 'susep', 'processo'];
 
-        // --- Inicialização ---
+        // --- Inicialização Firebase ---
         try {
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
-            console.log("Firebase inicializado com sucesso.");
+            console.log("Firebase inicializado.");
         } catch (e) {
             console.error("Erro Init:", e);
-            alert("Erro crítico ao iniciar Firebase. Verifique console.");
+            alert("Erro crítico ao iniciar Firebase. Verifique o console.");
         }
 
         // --- Funções Auxiliares ---
@@ -89,27 +89,36 @@
         }
 
         function showToast(msg, type='info') {
+            const container = document.getElementById('toast-container');
             const t = document.createElement('div');
-            t.className = `p-4 rounded shadow-xl text-white text-sm bg-gray-800 border-l-4 border-indigo-500 toast-enter`;
+            t.className = `p-4 rounded shadow-xl text-white text-sm bg-gray-800 border-l-4 border-indigo-500 toast-enter flex items-center gap-2 mb-2`;
             if(type==='warning') t.classList.replace('bg-gray-800', 'bg-red-600');
             if(type==='success') t.classList.replace('bg-gray-800', 'bg-green-600');
-            t.textContent = msg;
-            const container = document.getElementById('toast-container');
+            
+            // Icon based on type
+            let icon = '<i data-lucide="info" class="w-4 h-4"></i>';
+            if(type==='warning') icon = '<i data-lucide="alert-triangle" class="w-4 h-4"></i>';
+            if(type==='success') icon = '<i data-lucide="check-circle" class="w-4 h-4"></i>';
+
+            t.innerHTML = `${icon} <span>${msg}</span>`;
             if(container) container.appendChild(t);
-            setTimeout(()=>t.remove(), 3000);
+            lucide.createIcons();
+            setTimeout(()=>t.remove(), 4000);
         }
 
         function getInitials(name) { return name ? name.substring(0,2).toUpperCase() : '--'; }
 
-        // --- Lógica de Banco de Dados ---
+        // --- Lógica de Conexão e Dados ---
         
-        async function initAuth() {
+        async function initAppLogic() {
             try {
                 await signInAnonymously(auth);
-                console.log("Auth OK");
+                console.log("Autenticado.");
+                startDataListener();
             } catch (error) {
                 console.error("Auth Erro:", error);
-                document.getElementById('loadingIndicator').innerHTML = `<span class="text-red-600">Erro de Autenticação: ${error.message}</span>`;
+                const loader = document.getElementById('loadingIndicator');
+                if(loader) loader.innerHTML = `<span class="text-red-600 font-bold">Erro de Autenticação: ${error.message}</span>`;
             }
         }
 
@@ -130,13 +139,9 @@
                 const loader = document.getElementById('loadingIndicator');
                 if(loader) loader.classList.add('hidden');
                 
-                if(npsData.length === 0) {
-                     const countEl = document.getElementById('showingCount');
-                     if(countEl) countEl.textContent = "Banco conectado. Nenhum registro encontrado.";
-                }
             }, (error) => {
                 console.error("Firestore Erro:", error);
-                showToast("Erro de conexão: " + error.code, "warning");
+                showToast("Erro de conexão com o banco de dados.", "warning");
             });
         }
 
@@ -154,7 +159,6 @@
             document.getElementById('kpi-risco').textContent = npsData.filter(d => checkRisk(d.comentario)).length;
             document.getElementById('kpi-acao-rede').textContent = npsData.filter(d => d.acaoRede && d.acaoRede !== 'Nenhuma').length;
             
-            // Cálculos de porcentagem
             const total = npsData.length;
             const proc = npsData.filter(d => d.status === 'Procedente').length;
             document.getElementById('kpi-procedente-pct').textContent = total ? Math.round((proc/total)*100) + '%' : '0%';
@@ -169,7 +173,8 @@
             return npsData.filter(i => {
                 const textMatch = String(i.assistencia).includes(term) || 
                                   (i.prestador||'').toLowerCase().includes(term) ||
-                                  (i.analista||'').toLowerCase().includes(term);
+                                  (i.analista||'').toLowerCase().includes(term) ||
+                                  (i.fa||'').toLowerCase().includes(term);
                 
                 let statusMatch = true;
                 if(status === 'RISCO') statusMatch = checkRisk(i.comentario);
@@ -203,10 +208,10 @@
             const loadBtn = document.getElementById('loadMoreBtn');
 
             if (filtered.length === 0) {
-                if(showingEl) showingEl.textContent = "Nenhum resultado para os filtros.";
+                if(showingEl) showingEl.textContent = npsData.length === 0 ? "Banco de dados vazio." : "Nenhum resultado para os filtros.";
                 if(loadBtn) loadBtn.classList.add('hidden');
             } else {
-                if(showingEl) showingEl.textContent = `Exibindo ${Math.min(visibleItems, filtered.length)} de ${filtered.length}`;
+                if(showingEl) showingEl.textContent = `Mostrando ${Math.min(visibleItems, filtered.length)} de ${filtered.length} registros`;
                 if(loadBtn) loadBtn.classList.toggle('hidden', visibleItems >= filtered.length);
             }
 
@@ -214,25 +219,27 @@
                 const isRisk = checkRisk(row.comentario);
                 const isSel = selectedIds.has(row.firebaseId);
                 const tr = document.createElement('tr');
-                tr.className = `hover:bg-indigo-50 transition border-b border-gray-100 ${isRisk ? 'bg-red-50' : ''}`;
+                tr.className = `group hover:bg-indigo-50 transition border-b border-gray-100 last:border-0 ${isRisk ? 'bg-red-50' : ''}`;
                 
                 let statusClass = row.status==='Procedente' ? 'bg-red-100 text-red-800' : 
                                   row.status==='Improcedente' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
 
                 tr.innerHTML = `
-                    <td class="p-4 text-center"><input type="checkbox" class="custom-checkbox row-cb" data-id="${row.firebaseId}" ${isSel ? 'checked' : ''} onchange="window.toggleSelectRow('${row.firebaseId}')"></td>
-                    <td class="p-4 font-bold text-indigo-900">#${row.assistencia} ${isRisk ? '<span class="risk-badge bg-red-600 text-white text-[10px] px-2 rounded ml-2">RISCO</span>' : ''}</td>
-                    <td class="p-4 text-gray-500">${row.data || '-'}</td>
+                    <td class="p-4 text-center w-10"><input type="checkbox" class="custom-checkbox row-cb cursor-pointer" data-id="${row.firebaseId}" ${isSel ? 'checked' : ''} onchange="window.toggleSelectRow('${row.firebaseId}')"></td>
+                    <td class="p-4 font-bold text-indigo-900 whitespace-nowrap">#${row.assistencia} ${isRisk ? '<span class="risk-badge bg-red-600 text-white text-[10px] px-2 py-0.5 rounded ml-2 uppercase">RISCO</span>' : ''}</td>
+                    <td class="p-4 text-gray-500 whitespace-nowrap text-xs">${row.data || '-'}</td>
                     <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold ${row.nota < 7 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${row.nota}</span></td>
-                    <td class="p-4 text-gray-700 text-xs">${row.analista}</td>
-                    <td class="p-4 text-gray-600 text-xs truncate max-w-[150px]" title="${row.fa || ''} ${row.prestador}">
+                    <td class="p-4 text-gray-700 text-sm">${row.analista}</td>
+                    <td class="p-4 text-gray-600 text-xs max-w-[200px] truncate" title="${row.fa || ''} ${row.prestador}">
                         ${row.fa ? `<span class="font-bold text-indigo-700 bg-indigo-50 px-1 rounded mr-1">${row.fa}</span>` : ''} ${row.prestador}
                     </td>
-                    <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold ${statusClass}">${row.status}</span></td>
-                    <td class="p-4 text-right flex justify-end gap-1">
-                        <button onclick="window.viewDetails('${row.firebaseId}')" class="p-1 hover:text-indigo-600" title="Ver"><i data-lucide="eye" class="h-4 w-4"></i></button>
-                        <button onclick="window.openFormModal('${row.firebaseId}')" class="p-1 hover:text-blue-600" title="Editar"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
-                        <button onclick="window.confirmSingleDelete('${row.firebaseId}')" class="p-1 hover:text-red-600" title="Excluir"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                    <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-medium border ${statusClass}">${row.status}</span></td>
+                    <td class="p-4 text-right">
+                        <div class="flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                            <button onclick="window.viewDetails('${row.firebaseId}')" class="p-1.5 hover:text-indigo-600 hover:bg-white rounded" title="Ver Detalhes"><i data-lucide="eye" class="h-4 w-4"></i></button>
+                            <button onclick="window.openFormModal('${row.firebaseId}')" class="p-1.5 hover:text-blue-600 hover:bg-white rounded" title="Editar"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
+                            <button onclick="window.confirmSingleDelete('${row.firebaseId}')" class="p-1.5 hover:text-red-600 hover:bg-white rounded" title="Excluir"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -256,9 +263,6 @@
                 activeChartFilter={type:'analista',value:Object.keys(a)[i]}; 
                 refreshTable();
             });
-            
-            // Dummy Tendência (apenas visual por enquanto)
-            drawChart('chartTendencia', 'line', ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'], [5, 12, 8, 15], null);
         }
 
         function drawChart(id, t, l, d, cb) {
@@ -273,20 +277,64 @@
                     datasets:[{
                         label: 'Qtd',
                         data:d, 
-                        backgroundColor: t==='line' ? 'rgba(99, 102, 241, 0.2)' : '#6366f1',
-                        borderColor: '#6366f1',
-                        fill: t==='line'
+                        backgroundColor: '#6366f1',
+                        borderRadius: 4,
+                        barPercentage: 0.6
                     }]
                 }, 
                 options:{
                     maintainAspectRatio: false,
+                    responsive: true,
                     plugins:{legend:{display:false}}, 
-                    onClick:(e,el)=>{if(cb && el.length)cb(el[0].index)}
+                    onClick:(e,el)=>{if(cb && el.length)cb(el[0].index)},
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, grid: { borderDash: [2, 4] } }
+                    }
                 }
             });
         }
 
-        // --- Funções Expostas para o HTML (Window) ---
+        // --- EXPORTAR PARA EXCEL (Função Restaurada) ---
+        window.exportToExcel = function() {
+            if(!npsData.length) { showToast("Não há dados para exportar.", "warning"); return; }
+            
+            const ws = XLSX.utils.json_to_sheet(npsData.map(d => ({
+                "ID Assistência": d.assistencia,
+                "Data": d.data,
+                "Nota NPS": d.nota,
+                "Analista": d.analista,
+                "Código FA": d.fa,
+                "Prestador": d.prestador,
+                "Status": d.status,
+                "Motivo Detração": d.motivo,
+                "Ação Rede": d.acaoRede,
+                "Comentário Técnico": d.comentario,
+                "Risco": checkRisk(d.comentario) ? "SIM" : "NÃO"
+            })));
+            
+            // Ajustar largura das colunas
+            const wscols = [{wch:15}, {wch:12}, {wch:8}, {wch:20}, {wch:10}, {wch:30}, {wch:15}, {wch:20}, {wch:15}, {wch:50}, {wch:10}];
+            ws['!cols'] = wscols;
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Base NPS");
+            XLSX.writeFile(wb, "NPS_Exportacao.xlsx");
+            showToast("Download iniciado!", "success");
+        };
+
+        // --- BAIXAR MODELO (Função Restaurada) ---
+        window.downloadTemplate = function() {
+            const ws = XLSX.utils.json_to_sheet([
+                { "Assistencia": "123456", "Data": "01/01/2026", "Nota": 0, "Analista": "Nome", "Prestador": "Empresa X", "FA": "FA1234", "Status": "Procedente", "Motivo": "Atraso", "Ação Rede": "Advertência", "Comentário": "Cliente reclamou de..." }
+            ]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Modelo");
+            XLSX.writeFile(wb, "Modelo_Importacao_NPS.xlsx");
+            showToast("Modelo baixado!", "success");
+        };
+
+        // --- FUNÇÕES DE INTERFACE (Window) ---
         
         window.performLogin = function() {
             const name = document.getElementById('loginName').value.trim();
@@ -304,12 +352,17 @@
             document.getElementById('userNameDisplay').textContent = getInitials(name);
             document.getElementById('userNameDisplay').title = name;
             
-            showToast(`Login realizado: ${name}`, 'success');
+            showToast(`Bem-vindo, ${name}!`, 'success');
             
             // Inicia conexão
-            initAuth().then(() => {
-                startDataListener();
-            });
+            initAppLogic();
+        };
+
+        window.logout = function() {
+            if(confirm("Deseja realmente sair?")) {
+                localStorage.removeItem('nps_user_name');
+                location.reload();
+            }
         };
 
         window.openFormModal = function(id = null) {
@@ -360,26 +413,26 @@
             try {
                 if(id) {
                     await updateDoc(doc(db, COLLECTION_NAME, id), rec);
-                    showToast("Registro atualizado!", "success");
+                    showToast("Atualizado com sucesso!", "success");
                 } else {
                     rec.createdAt = new Date().toISOString();
                     await addDoc(collection(db, COLLECTION_NAME), rec);
-                    showToast("Registro criado!", "success");
+                    showToast("Criado com sucesso!", "success");
                 }
             } catch(err) {
                 console.error(err);
-                showToast("Erro ao salvar: " + err.message, "warning");
+                showToast("Erro ao salvar. Verifique permissões.", "warning");
             }
         };
 
         window.confirmSingleDelete = function(id) { 
             selectedRecordId = id; 
-            document.getElementById('confirmText').textContent = "Excluir este item?"; 
+            document.getElementById('confirmText').textContent = "Excluir este registro permanentemente?"; 
             document.getElementById('confirmBtnAction').onclick = async () => {
                 window.closeModal('confirmModal');
                 try {
                     await deleteDoc(doc(db, COLLECTION_NAME, selectedRecordId));
-                    showToast("Excluído com sucesso!", "success");
+                    showToast("Registro excluído!", "success");
                 } catch(e) { showToast("Erro ao excluir", "warning"); }
             };
             document.getElementById('confirmModal').classList.remove('hidden'); 
@@ -387,7 +440,7 @@
 
         window.confirmBatchDelete = function() {
             if(!selectedIds.size) return;
-            document.getElementById('confirmText').textContent = `Excluir ${selectedIds.size} itens selecionados?`;
+            document.getElementById('confirmText').textContent = `Excluir ${selectedIds.size} registros selecionados?`;
             document.getElementById('confirmBtnAction').onclick = async () => {
                 window.closeModal('confirmModal');
                 try {
@@ -409,30 +462,43 @@
             r.onload = async function(evt) {
                 try {
                     const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
-                    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                    let c=0;
-                    showToast("Iniciando importação...", "info");
+                    // Busca planilha de forma segura
+                    const sheetName = wb.SheetNames[0];
+                    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
                     
+                    if(!rows || rows.length === 0) {
+                        showToast("Planilha vazia ou formato inválido.", "warning");
+                        return;
+                    }
+
+                    showToast(`Processando ${rows.length} linhas...`, "info");
+                    
+                    let count = 0;
                     const batch = writeBatch(db);
-                    // Firestore limits batch to 500 operations. Doing simple loop for safety in this demo or create chunks
-                    // For this simple version, standard loop with promises
-                    for(let r of rows) {
+                    
+                    // Limite de batch é 500, então usamos loop simples por segurança neste demo
+                    // ou promises paralelas
+                    const promises = rows.map(r => {
                         const rec = {
-                            assistencia: r.ID || r.Assistencia || "000",
-                            nota: r.Nota || 0,
-                            data: r.Data || "-",
-                            status: r.Status || "Em Análise",
-                            comentario: r.Comentario || "",
+                            assistencia: r.ID || r.Assistencia || r.assistencia || "000",
+                            nota: r.Nota || r.nota || 0,
+                            data: r.Data || r.data || "-",
+                            status: r.Status || r.status || "Em Análise",
+                            comentario: r.Comentario || r.Obs || r.obs || "",
                             analista: currentAnalista,
-                            prestador: r.Prestador || "",
-                            motivo: r.Motivo || "",
+                            prestador: r.Prestador || r.prestador || "",
+                            motivo: r.Motivo || r.motivo || "",
+                            fa: r.FA || r.fa || "",
+                            acaoRede: r.Acao || r.acao || "",
                             createdAt: new Date().toISOString()
                         };
-                        await addDoc(collection(db, COLLECTION_NAME), rec);
-                        c++;
-                    }
-                    showToast(`${c} registros importados!`, "success");
+                        return addDoc(collection(db, COLLECTION_NAME), rec);
+                    });
+
+                    await Promise.all(promises);
+                    showToast(`${rows.length} importados com sucesso!`, "success");
                 } catch(err) {
+                    console.error(err);
                     showToast("Erro na importação: " + err.message, "warning");
                 }
             };
@@ -448,12 +514,17 @@
             if(!i) return;
             document.getElementById('detailsContent').innerHTML = `
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div><p class="text-xs text-gray-500 font-bold">ASSISTÊNCIA</p><p>${i.assistencia}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold">ANALISTA</p><p>${i.analista}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold">PRESTADOR</p><p>${i.prestador}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold">MOTIVO</p><p>${i.motivo}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold uppercase">Assistência</p><p class="text-lg font-medium">${i.assistencia}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold uppercase">Analista</p><p>${i.analista}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold uppercase">Prestador</p><p>${i.prestador}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold uppercase">Motivo</p><p>${i.motivo}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold uppercase">Data</p><p>${i.data}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold uppercase">FA</p><p>${i.fa || '-'}</p></div>
                 </div>
-                <div class="bg-gray-50 p-3 rounded border"><p class="text-xs text-gray-500 font-bold mb-1">COMENTÁRIO</p><p class="text-sm text-gray-800">${i.comentario}</p></div>
+                <div class="bg-gray-50 p-4 rounded border border-gray-200">
+                    <p class="text-xs text-gray-500 font-bold mb-2 uppercase">Comentário Técnico</p>
+                    <p class="text-sm text-gray-800 leading-relaxed">${i.comentario}</p>
+                </div>
             `;
             document.getElementById('detailsModal').classList.remove('hidden');
         };
@@ -485,7 +556,7 @@
             }
         };
 
-        window.loadMore = () => { visibleItems += 5; refreshTable(); };
+        window.loadMore = () => { visibleItems += 10; refreshTable(); };
         window.clearFilters = () => { 
             document.getElementById('searchInput').value=''; 
             document.getElementById('filterStatus').value=''; 
@@ -493,19 +564,24 @@
         };
         window.clearChartFilter = () => { activeChartFilter=null; refreshTable(); };
 
-        // Inicialização de UI se já logado
+        // --- INICIALIZAÇÃO AUTOMÁTICA ---
+        // Se já tiver usuário salvo, pula o login e inicia
         if(currentAnalista) {
-            document.getElementById('loginName').value = currentAnalista;
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('userNameDisplay').textContent = getInitials(currentAnalista);
+            document.getElementById('userNameDisplay').title = currentAnalista;
+            // Inicia conexão automaticamente
+            initAppLogic();
         }
         
-        // Listeners de Input
+        // Listeners
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             const ids = ['searchInput', 'filterStatus', 'filterDateStart', 'filterDateEnd'];
             ids.forEach(id => {
                 const el = document.getElementById(id);
                 if(el) el.addEventListener('input', () => {
-                    visibleItems = 5;
+                    visibleItems = 10;
                     activeChartFilter = null;
                     refreshTable();
                 });
@@ -515,11 +591,6 @@
     </script>
 </head>
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden">
-
-    <!-- Error Banner -->
-    <div id="errorBanner" class="hidden bg-red-600 text-white text-center p-2 text-sm font-bold z-50">
-        <span id="errorText">Erro</span>
-    </div>
 
     <!-- Login Modal -->
     <div id="loginModal" class="fixed inset-0 bg-indigo-900 z-[60] flex items-center justify-center p-4">
@@ -546,11 +617,14 @@
     <!-- Confirm Modal -->
     <div id="confirmModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center animate-fade-in">
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="alert-triangle" class="text-red-600 h-6 w-6"></i>
+            </div>
             <h3 class="text-lg font-bold text-gray-900 mb-2">Confirmar Exclusão</h3>
             <p class="text-sm text-gray-500 mb-6" id="confirmText">Tem certeza?</p>
             <div class="flex gap-3 justify-center">
-                <button onclick="closeModal('confirmModal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg">Cancelar</button>
-                <button id="confirmBtnAction" class="px-4 py-2 bg-red-600 text-white rounded-lg shadow-md">Sim, Excluir</button>
+                <button onclick="closeModal('confirmModal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition">Cancelar</button>
+                <button id="confirmBtnAction" class="px-4 py-2 bg-red-600 text-white rounded-lg font-medium shadow-md hover:bg-red-700 transition">Sim, Excluir</button>
             </div>
         </div>
     </div>
@@ -569,6 +643,19 @@
                 </div>
             </div>
             <div class="flex items-center space-x-3">
+                <button onclick="downloadTemplate()" class="hidden md:flex items-center space-x-2 bg-indigo-800 hover:bg-indigo-700 px-3 py-1.5 rounded-lg text-xs transition-colors border border-indigo-700 text-indigo-100">
+                    <i data-lucide="download" class="h-4 w-4"></i>
+                    <span>Modelo</span>
+                </button>
+                <button onclick="exportToExcel()" class="hidden md:flex items-center space-x-2 bg-green-700 hover:bg-green-600 px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm border border-green-600">
+                    <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>
+                    <span>Excel</span>
+                </button>
+                <div class="h-8 w-1 bg-indigo-700 mx-2"></div>
+                <button onclick="logout()" class="flex items-center space-x-2 bg-red-800/80 hover:bg-red-700 px-3 py-1.5 rounded-lg text-xs transition-colors" title="Sair do Sistema">
+                    <i data-lucide="log-out" class="h-4 w-4"></i>
+                    <span>Sair</span>
+                </button>
                 <div id="userNameDisplay" class="h-9 w-9 rounded-full bg-indigo-500 flex items-center justify-center border-2 border-indigo-400 font-bold text-xs cursor-help" title="Usuário Logado">--</div>
             </div>
         </div>
@@ -579,165 +666,219 @@
         
         <!-- Toolbar -->
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h2 class="text-xl font-bold text-gray-800">Visão Estratégica</h2>
+            <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <i data-lucide="layout-dashboard" class="h-5 w-5 text-indigo-600"></i>
+                Visão Estratégica
+            </h2>
             <div class="flex space-x-2 w-full md:w-auto">
                 <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelUpload(event)">
-                <button id="btnDeleteSelected" onclick="confirmBatchDelete()" class="hidden flex items-center bg-red-100 text-red-700 px-4 py-2 rounded-lg text-sm font-bold border border-red-200 transition hover:bg-red-200"><i data-lucide="trash" class="h-4 w-4 mr-2"></i><span id="selectedCountText">Excluir (0)</span></button>
-                <button onclick="document.getElementById('excelInput').click()" class="flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"><i data-lucide="sheet" class="h-4 w-4 mr-2"></i>Importar</button>
-                <button onclick="openFormModal()" class="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"><i data-lucide="plus" class="h-4 w-4 mr-2"></i>Novo</button>
+                
+                <button id="btnDeleteSelected" onclick="confirmBatchDelete()" class="hidden flex items-center bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-bold border border-red-200 transition hover:bg-red-100 hover:shadow-sm">
+                    <i data-lucide="trash-2" class="h-4 w-4 mr-2"></i>
+                    <span id="selectedCountText">Excluir Selecionados</span>
+                </button>
+
+                <button onclick="document.getElementById('excelInput').click()" class="flex items-center bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm">
+                    <i data-lucide="upload-cloud" class="h-4 w-4 mr-2 text-indigo-600"></i>
+                    Importar
+                </button>
+                
+                <button onclick="openFormModal()" class="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md hover:shadow-lg transform active:scale-95">
+                    <i data-lucide="plus-circle" class="h-4 w-4 mr-2"></i>
+                    Novo Registro
+                </button>
             </div>
         </div>
 
         <!-- KPIs -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-gray-400">
-                <p class="text-xs text-gray-500 font-bold uppercase">Total Analisado</p>
-                <h3 class="text-2xl font-bold mt-2" id="kpi-total">0</h3>
-            </div>
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500">
-                <div class="flex justify-between">
-                    <p class="text-xs text-gray-500 font-bold uppercase">Procedentes</p>
-                    <span class="text-xs text-red-400 font-bold" id="kpi-procedente-pct">0%</span>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-gray-400 flex flex-col justify-between hover:translate-y-[-2px] transition-transform">
+                <div class="flex justify-between items-start">
+                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Total Analisado</p>
+                    <i data-lucide="file-text" class="h-5 w-5 text-gray-300"></i>
                 </div>
-                <h3 class="text-2xl font-bold mt-2 text-red-600" id="kpi-procedente">0</h3>
+                <h3 class="text-3xl font-bold mt-2 text-gray-800" id="kpi-total">0</h3>
             </div>
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-orange-500">
-                <p class="text-xs text-gray-500 font-bold uppercase">Risco Crítico</p>
-                <h3 class="text-2xl font-bold mt-2 text-orange-600" id="kpi-risco">0</h3>
-                <p class="text-[10px] text-gray-400 mt-1">Palavras-chave de alerta</p>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500 flex flex-col justify-between hover:translate-y-[-2px] transition-transform">
+                <div class="flex justify-between items-start">
+                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Procedentes</p>
+                    <span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold" id="kpi-procedente-pct">0%</span>
+                </div>
+                <h3 class="text-3xl font-bold mt-2 text-red-600" id="kpi-procedente">0</h3>
             </div>
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-yellow-500">
-                <p class="text-xs text-gray-500 font-bold uppercase">Ações na Rede</p>
-                <h3 class="text-2xl font-bold mt-2" id="kpi-acao-rede">0</h3>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-orange-500 flex flex-col justify-between hover:translate-y-[-2px] transition-transform">
+                <div class="flex justify-between items-start">
+                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Risco Crítico</p>
+                    <i data-lucide="alert-triangle" class="h-5 w-5 text-orange-500 animate-pulse"></i>
+                </div>
+                <h3 class="text-3xl font-bold mt-2 text-orange-600" id="kpi-risco">0</h3>
+                <p class="text-[10px] text-gray-400 mt-1">Palavras-chave jurídicas</p>
+            </div>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-yellow-500 flex flex-col justify-between hover:translate-y-[-2px] transition-transform">
+                <div class="flex justify-between items-start">
+                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Ações na Rede</p>
+                    <i data-lucide="activity" class="h-5 w-5 text-yellow-500"></i>
+                </div>
+                <h3 class="text-3xl font-bold mt-2 text-gray-800" id="kpi-acao-rede">0</h3>
             </div>
         </div>
 
         <!-- Charts -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div class="bg-white p-5 rounded-xl card-shadow">
-                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4 flex justify-between">Motivos <button onclick="clearChartFilter()" class="text-xs text-indigo-500 hover:underline">Limpar Filtro</button></h3>
-                <div class="chart-container" style="height: 250px;"><canvas id="chartMotivos"></canvas></div>
+            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100">
+                <h3 class="text-sm font-bold uppercase text-gray-500 mb-6 flex justify-between items-center">
+                    <span class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="h-4 w-4"></i> Motivos de Detração</span>
+                    <button onclick="clearChartFilter()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline bg-indigo-50 px-2 py-1 rounded">Limpar Filtro</button>
+                </h3>
+                <div class="chart-container" style="height: 280px;"><canvas id="chartMotivos"></canvas></div>
             </div>
-            <div class="bg-white p-5 rounded-xl card-shadow">
-                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4">Analistas</h3>
-                <div class="chart-container" style="height: 250px;"><canvas id="chartAnalistas"></canvas></div>
+            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100">
+                <h3 class="text-sm font-bold uppercase text-gray-500 mb-6 flex items-center gap-2">
+                    <i data-lucide="users" class="h-4 w-4"></i> Performance por Analista
+                </h3>
+                <div class="chart-container" style="height: 280px;"><canvas id="chartAnalistas"></canvas></div>
             </div>
         </div>
 
         <!-- Table -->
-        <div class="bg-white rounded-xl card-shadow overflow-hidden mb-8">
-            <div class="p-5 border-b border-gray-100 bg-gray-50">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <input type="text" id="searchInput" placeholder="Buscar ID, Prestador..." class="w-full rounded-lg border-gray-300 border p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-                    <select id="filterStatus" class="w-full rounded-lg border p-2 text-sm text-gray-600"><option value="">Todos Status</option><option value="Procedente">Procedente</option><option value="RISCO">⚠️ Risco</option></select>
-                    <div class="flex gap-2">
-                        <input type="date" id="filterDateStart" class="w-full text-sm border p-2 rounded-lg text-gray-500">
-                        <input type="date" id="filterDateEnd" class="w-full text-sm border p-2 rounded-lg text-gray-500">
+        <div class="bg-white rounded-xl card-shadow overflow-hidden mb-8 border border-gray-200">
+            <div class="p-5 border-b border-gray-100 bg-gray-50/50">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                    <div class="md:col-span-5 relative">
+                        <i data-lucide="search" class="absolute left-3 top-2.5 h-4 w-4 text-gray-400"></i>
+                        <input type="text" id="searchInput" placeholder="Buscar ID, Prestador, Analista..." class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow">
+                    </div>
+                    <div class="md:col-span-3">
+                        <select id="filterStatus" class="w-full py-2 px-3 rounded-lg border border-gray-300 text-sm text-gray-600 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <option value="">Todos Status</option>
+                            <option value="Procedente">Procedente</option>
+                            <option value="Improcedente">Improcedente</option>
+                            <option value="RISCO">⚠️ Risco Crítico</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-4 flex gap-2">
+                        <input type="date" id="filterDateStart" class="w-full text-sm border border-gray-300 p-2 rounded-lg text-gray-500 focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <input type="date" id="filterDateEnd" class="w-full text-sm border border-gray-300 p-2 rounded-lg text-gray-500 focus:ring-2 focus:ring-indigo-500 outline-none">
                     </div>
                 </div>
             </div>
 
-            <div class="overflow-x-auto custom-scroll relative min-h-[150px]">
+            <div class="overflow-x-auto custom-scroll relative min-h-[300px]">
                 <!-- Loading State -->
-                <div id="loadingIndicator" class="absolute inset-0 bg-white/90 z-10 flex flex-col items-center justify-center font-bold text-gray-500">
+                <div id="loadingIndicator" class="absolute inset-0 bg-white/90 z-20 flex flex-col items-center justify-center font-bold text-gray-500">
                     <i data-lucide="loader-2" class="animate-spin h-8 w-8 mb-2 text-indigo-600"></i> 
-                    <span>Conectando ao Firebase...</span>
+                    <span>Sincronizando com a Nuvem...</span>
                 </div>
 
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold tracking-wider">
+                    <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold tracking-wider sticky top-0 z-10 shadow-sm">
                         <tr>
-                            <th class="p-4 w-10 text-center"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th>
-                            <th class="p-4">ID</th>
-                            <th class="p-4">Data</th>
-                            <th class="p-4">Nota</th>
-                            <th class="p-4">Analista</th>
-                            <th class="p-4">Prestador</th>
-                            <th class="p-4">Status</th>
-                            <th class="p-4 text-right">Ações</th>
+                            <th class="p-4 w-10 text-center bg-gray-100"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th>
+                            <th class="p-4 bg-gray-100">ID / Risco</th>
+                            <th class="p-4 bg-gray-100">Data</th>
+                            <th class="p-4 bg-gray-100">Nota</th>
+                            <th class="p-4 bg-gray-100">Analista</th>
+                            <th class="p-4 bg-gray-100">Prestador / FA</th>
+                            <th class="p-4 bg-gray-100">Status</th>
+                            <th class="p-4 text-right bg-gray-100">Ações</th>
                         </tr>
                     </thead>
-                    <tbody id="tableBody" class="text-sm divide-y divide-gray-100"></tbody>
+                    <tbody id="tableBody" class="text-sm divide-y divide-gray-100 bg-white"></tbody>
                 </table>
             </div>
-            <div class="p-4 border-t border-gray-100 text-center bg-gray-50">
-                <p class="text-xs text-gray-500 mb-2" id="showingCount">...</p>
-                <button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hidden px-4 py-2 hover:bg-indigo-100 rounded-full transition">Ver Mais Registros</button>
+            <div class="p-4 border-t border-gray-100 text-center bg-gray-50/50 flex flex-col items-center">
+                <p class="text-xs text-gray-500 mb-2 font-medium" id="showingCount">Carregando dados...</p>
+                <button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hidden px-6 py-2 hover:bg-indigo-50 rounded-full transition border border-indigo-200 bg-white shadow-sm">
+                    Carregar Mais
+                </button>
             </div>
         </div>
     </main>
 
     <!-- Modals (Hidden by default) -->
-    <div id="detailsModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in">
-            <div class="px-6 py-4 bg-indigo-50 border-b flex justify-between items-center">
-                <h3 class="font-bold text-indigo-900 flex items-center gap-2"><i data-lucide="file-search" class="h-5 w-5"></i> Detalhes</h3>
+    <div id="detailsModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 bg-indigo-50 border-b flex justify-between items-center flex-none">
+                <h3 class="font-bold text-indigo-900 flex items-center gap-2"><i data-lucide="file-search" class="h-5 w-5"></i> Detalhes da Assistência</h3>
                 <button onclick="closeModal('detailsModal')" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="h-6 w-6"></i></button>
             </div>
-            <div class="p-6 max-h-[70vh] overflow-y-auto custom-scroll" id="detailsContent"></div>
-            <div class="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                <button onclick="closeModal('detailsModal')" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-100">Fechar</button>
+            <div class="p-6 overflow-y-auto custom-scroll flex-grow" id="detailsContent"></div>
+            <div class="px-6 py-4 bg-gray-50 border-t flex justify-end flex-none">
+                <button onclick="closeModal('detailsModal')" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 shadow-sm transition">Fechar Visualização</button>
             </div>
         </div>
     </div>
 
-    <div id="formModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
-            <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between items-center">
-                <h3 class="font-bold" id="formModalTitle">Registro</h3>
+    <div id="formModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between items-center flex-none">
+                <h3 class="font-bold flex items-center gap-2" id="formModalTitle"><i data-lucide="edit" class="h-4 w-4"></i> Registro</h3>
                 <button onclick="closeModal('formModal')" class="text-indigo-200 hover:text-white"><i data-lucide="x" class="h-6 w-6"></i></button>
             </div>
-            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scroll">
+            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 overflow-y-auto custom-scroll flex-grow">
                 <input type="hidden" id="firebaseId"><input type="hidden" id="editIndex">
+                
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">ID Assistência</label>
-                        <input type="number" id="inpAssistencia" required class="w-full border p-2 rounded text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">ID Assistência</label>
+                        <input type="number" id="inpAssistencia" required class="w-full border border-gray-300 p-2 rounded-lg text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Data</label>
-                        <input type="text" id="inpData" placeholder="DD/MM/AAAA" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Data</label>
+                        <input type="text" id="inpData" placeholder="DD/MM/AAAA" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                     </div>
                 </div>
+                
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Nota NPS</label>
-                        <input type="number" id="inpNota" required min="0" max="10" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Nota NPS</label>
+                        <input type="number" id="inpNota" required min="0" max="10" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Analista</label>
-                        <input type="text" id="inpAnalista" readonly class="w-full border p-2 rounded text-sm bg-gray-100 text-gray-600 cursor-not-allowed">
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Analista</label>
+                        <input type="text" id="inpAnalista" readonly class="w-full border border-gray-300 p-2 rounded-lg text-sm bg-gray-100 text-gray-500 cursor-not-allowed">
                     </div>
                 </div>
+                
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Prestador</label>
-                        <input type="text" id="inpPrestador" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Prestador</label>
+                        <input type="text" id="inpPrestador" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Cód. FA</label>
-                        <input type="text" id="inpFA" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Cód. FA</label>
+                        <input type="text" id="inpFA" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                     </div>
                 </div>
+                
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Status</label>
-                        <select id="inpStatus" class="w-full border p-2 rounded text-sm bg-white"><option value="Procedente">Procedente</option><option value="Improcedente">Improcedente</option><option value="Em Análise">Em Análise</option></select>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Status</label>
+                        <select id="inpStatus" class="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                            <option value="Procedente">Procedente</option>
+                            <option value="Improcedente">Improcedente</option>
+                            <option value="Em Análise">Em Análise</option>
+                        </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1">Motivo</label>
-                        <input type="text" id="inpMotivo" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Motivo</label>
+                        <input type="text" id="inpMotivo" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                     </div>
                 </div>
+                
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1">Comentário Técnico</label>
-                    <textarea id="inpComentario" rows="3" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Comentário Técnico</label>
+                    <textarea id="inpComentario" rows="4" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none"></textarea>
                 </div>
+                
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1">Ação na Rede</label>
-                    <input type="text" id="inpAcao" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Ação na Rede</label>
+                    <input type="text" id="inpAcao" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                 </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 font-bold shadow-md transition transform hover:scale-[1.02]">Salvar Registro</button>
+                
+                <button type="submit" class="w-full bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 font-bold shadow-md transition transform hover:scale-[1.02] flex justify-center items-center gap-2">
+                    <i data-lucide="save" class="h-4 w-4"></i> Salvar Registro
+                </button>
             </form>
         </div>
     </div>
