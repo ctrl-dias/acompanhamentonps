@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Interativo NPS</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- SheetJS (Excel Import) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Toast Animations */
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast-enter { animation: slideIn 0.4s ease-out forwards; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3"></div>
+
+    <!-- Top Navigation -->
+    <nav class="bg-indigo-900 text-white shadow-lg sticky top-0 z-30">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-700 p-2 rounded-lg">
+                    <i data-lucide="bar-chart-2" class="h-6 w-6 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-wide">Painel de Tratativa NPS</h1>
+                    <p class="text-xs text-indigo-300">Gestão de Qualidade</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="resetData()" class="hidden md:flex items-center space-x-2 bg-red-800 hover:bg-red-700 px-3 py-1.5 rounded-lg text-xs transition-colors" title="Limpar dados salvos">
+                    <i data-lucide="rotate-ccw" class="h-4 w-4"></i>
+                    <span>Resetar</span>
+                </button>
+                <button onclick="exportToCSV()" class="hidden md:flex items-center space-x-2 bg-indigo-800 hover:bg-indigo-700 px-3 py-1.5 rounded-lg text-xs transition-colors">
+                    <i data-lucide="download" class="h-4 w-4"></i>
+                    <span>Exportar CSV</span>
+                </button>
+                <div class="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center border-2 border-indigo-400">
+                    <span class="font-bold text-xs">AD</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        
+        <!-- Action Toolbar -->
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <h2 class="text-xl font-bold text-gray-800">Visão Geral</h2>
+            <div class="flex space-x-2 w-full md:w-auto">
+                <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden" onchange="handleExcelUpload(event)">
+                
+                <button onclick="document.getElementById('excelInput').click()" class="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium">
+                    <i data-lucide="sheet" class="h-4 w-4"></i>
+                    <span>Importar Excel</span>
+                </button>
+                
+                <button onclick="openFormModal()" class="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium">
+                    <i data-lucide="plus" class="h-4 w-4"></i>
+                    <span>Novo Registro</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-gray-400">
+                <p class="text-xs text-gray-500 font-bold uppercase">Total Analisado</p>
+                <div class="flex justify-between items-end mt-2">
+                    <h3 class="text-2xl font-bold" id="kpi-total">0</h3>
+                    <i data-lucide="file-text" class="h-5 w-5 text-gray-300"></i>
+                </div>
+            </div>
+            
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-indigo-500">
+                 <p class="text-xs text-gray-500 font-bold uppercase">Score NPS (Base)</p>
+                 <div class="flex justify-between items-end mt-2">
+                     <h3 class="text-2xl font-bold text-indigo-700" id="kpi-score">0</h3>
+                     <i data-lucide="activity" class="h-5 w-5 text-indigo-300"></i>
+                 </div>
+                 <p class="text-[10px] text-gray-400 mt-1">Fórmula: %Prom - %Det</p>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500">
+                <p class="text-xs text-gray-500 font-bold uppercase">Procedentes</p>
+                <div class="flex justify-between items-end mt-2">
+                    <h3 class="text-2xl font-bold text-red-600" id="kpi-procedente">0</h3>
+                    <span class="text-xs font-medium text-red-400" id="kpi-procedente-pct">0%</span>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-green-500">
+                <p class="text-xs text-gray-500 font-bold uppercase">Improcedentes</p>
+                <div class="flex justify-between items-end mt-2">
+                    <h3 class="text-2xl font-bold text-green-600" id="kpi-improcedente">0</h3>
+                    <span class="text-xs font-medium text-green-400" id="kpi-improcedente-pct">0%</span>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-yellow-500">
+                <p class="text-xs text-gray-500 font-bold uppercase">Ações na Rede</p>
+                <div class="flex justify-between items-end mt-2">
+                    <h3 class="text-2xl font-bold" id="kpi-acao-rede">0</h3>
+                    <i data-lucide="alert-triangle" class="h-5 w-5 text-yellow-500"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white p-5 rounded-xl card-shadow">
+                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4">Motivos de Detração</h3>
+                <div class="chart-container">
+                    <canvas id="chartMotivos"></canvas>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-xl card-shadow">
+                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4">Performance por Analista</h3>
+                <div class="chart-container">
+                    <canvas id="chartAnalistas"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table & Filters -->
+        <div class="bg-white rounded-xl card-shadow overflow-hidden">
+            <!-- Advanced Filters -->
+            <div class="p-5 border-b border-gray-100 bg-gray-50">
+                <div class="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-4">
+                    <h3 class="font-bold text-gray-700 flex items-center">
+                        <i data-lucide="filter" class="h-4 w-4 mr-2"></i>
+                        Filtros e Registros
+                    </h3>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div class="relative">
+                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="search" class="h-4 w-4 text-gray-400"></i>
+                        </div>
+                        <input type="text" id="searchInput" placeholder="Buscar geral..." 
+                            class="pl-10 w-full rounded-lg border-gray-300 border p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    
+                    <div>
+                         <select id="filterStatus" class="w-full rounded-lg border-gray-300 border p-2 text-sm text-gray-600 focus:ring-indigo-500">
+                            <option value="">Todos os Status</option>
+                            <option value="Procedente">Procedente</option>
+                            <option value="Improcedente">Improcedente</option>
+                            <option value="Em Análise">Em Análise</option>
+                        </select>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <input type="date" id="filterDateStart" class="w-full rounded-lg border-gray-300 border p-2 text-sm text-gray-500" title="Data Início">
+                        <input type="date" id="filterDateEnd" class="w-full rounded-lg border-gray-300 border p-2 text-sm text-gray-500" title="Data Fim">
+                    </div>
+                    
+                    <button onclick="clearFilters()" class="bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-lg px-4 py-2 text-sm transition-colors">
+                        Limpar Filtros
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="overflow-x-auto custom-scroll">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold tracking-wider">
+                        <tr>
+                            <th class="p-4 border-b">ID</th>
+                            <th class="p-4 border-b">Data</th>
+                            <th class="p-4 border-b">Nota</th>
+                            <th class="p-4 border-b">Analista</th>
+                            <th class="p-4 border-b">Prestador</th>
+                            <th class="p-4 border-b">Status</th>
+                            <th class="p-4 border-b text-right">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="text-sm divide-y divide-gray-100">
+                        <!-- JS Rendered -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Load More Footer -->
+            <div class="p-4 border-t border-gray-100 bg-gray-50 flex flex-col items-center justify-center gap-2">
+                <p class="text-xs text-gray-500" id="showingCount">Mostrando 0 de 0</p>
+                <button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hover:text-indigo-800 hover:bg-indigo-100 px-4 py-2 rounded-full transition-colors hidden">
+                    Carregar Mais Registros
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal: View Details -->
+    <div id="detailsModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in">
+            <div class="px-6 py-4 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
+                <h3 class="font-bold text-indigo-900 flex items-center gap-2">
+                    <i data-lucide="file-search" class="h-5 w-5"></i>
+                    Detalhes da Assistência
+                </h3>
+                <button onclick="closeModal('detailsModal')" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="h-6 w-6"></i></button>
+            </div>
+            <div class="p-6 max-h-[70vh] overflow-y-auto custom-scroll" id="detailsContent">
+                <!-- Populated by JS -->
+            </div>
+            <div class="px-6 py-4 bg-gray-50 border-t flex justify-end">
+                <button onclick="closeModal('detailsModal')" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-100">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Add/Edit Form -->
+    <div id="formModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
+            <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between items-center">
+                <h3 class="font-bold" id="formModalTitle">Novo Registro</h3>
+                <button onclick="closeModal('formModal')" class="text-indigo-200 hover:text-white"><i data-lucide="x" class="h-6 w-6"></i></button>
+            </div>
+            
+            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scroll">
+                <input type="hidden" id="editIndex" value="-1">
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">ID Assistência</label>
+                        <input type="number" id="inpAssistencia" required class="w-full rounded-lg border-gray-300 border p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Data</label>
+                        <input type="text" id="inpData" placeholder="DD/MM/AAAA" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Nota NPS</label>
+                        <input type="number" id="inpNota" required min="0" max="10" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Analista</label>
+                        <input type="text" id="inpAnalista" required class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Prestador</label>
+                    <input type="text" id="inpPrestador" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                        <select id="inpStatus" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                            <option value="Procedente">Procedente</option>
+                            <option value="Improcedente">Improcedente</option>
+                            <option value="Em Análise">Em Análise</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Motivo</label>
+                        <input type="text" id="inpMotivo" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Comentário Técnico</label>
+                    <textarea id="inpComentario" rows="3" class="w-full rounded-lg border-gray-300 border p-2 text-sm"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Ação na Rede</label>
+                    <input type="text" id="inpAcao" placeholder="Ex: Desligamento, Advertência, Nenhuma" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" onclick="closeModal('formModal')" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md">Salvar Registro</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Default Data (used if LocalStorage is empty)
+        const defaultData = [
+            { assistencia: "9152596", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "PR", cidade: "Curitiba", prestador: "GPRAG CONTROLE", motivo: "Visita não realizada", analista: "Rebecca", status: "Procedente", comentario: "Prestador não compareceu.", acaoRede: "Desligamento" },
+            { assistencia: "9098378", data: "02/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "PR", cidade: "Curitiba", prestador: "TOP SERVICE", motivo: "Danos", analista: "Jonathan", status: "Improcedente", comentario: "TV já estava danificada.", acaoRede: "Nenhuma" },
+            { assistencia: "9167619", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "HDI", uf: "MG", cidade: "BH", prestador: "HMS ASSISTENCIA", motivo: "Cobertura", analista: "Rebecca", status: "Procedente", comentario: "Erro de cobertura.", acaoRede: "Nenhuma" },
+            { assistencia: "9145640", data: "06/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "RJ", cidade: "Rio", prestador: "MARANATA", motivo: "Falha operacional", analista: "Rebecca", status: "Procedente", comentario: "Falha operacional grave.", acaoRede: "Nenhuma" },
+            { assistencia: "9178103", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "SP", cidade: "SJC", prestador: "CASA DA CHAVE", motivo: "Não houve falha", analista: "Rebecca", status: "Improcedente", comentario: "Cliente reclamou da assistência errada.", acaoRede: "Nenhuma" },
+            { assistencia: "9188888", data: "09/01/2026", nota: 1, categoria: "Detrator", cliente: "ALLIANZ", uf: "SP", cidade: "São Paulo", prestador: "GUINCHO RÁPIDO", motivo: "Atraso", analista: "Marcos", status: "Procedente", comentario: "Demora de 120 min.", acaoRede: "Advertência" }
+        ];
+
+        let npsData = [];
+        let visibleItems = 5;
+        let chartInstances = {};
+        
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadData(); // Load from LocalStorage or Default
+            
+            // Add listeners to filters
+            ['searchInput', 'filterStatus', 'filterDateStart', 'filterDateEnd'].forEach(id => {
+                document.getElementById(id).addEventListener('input', () => {
+                    visibleItems = 5;
+                    refreshTable();
+                });
+            });
+        });
+
+        // --- Data Persistence ---
+        function loadData() {
+            const saved = localStorage.getItem('dashboardNPS_data');
+            if (saved) {
+                try {
+                    npsData = JSON.parse(saved);
+                    showToast('Dados carregados com sucesso!', 'info');
+                } catch(e) {
+                    npsData = [...defaultData];
+                }
+            } else {
+                npsData = [...defaultData];
+            }
+            refreshDashboard();
+        }
+
+        function saveData() {
+            localStorage.setItem('dashboardNPS_data', JSON.stringify(npsData));
+        }
+
+        function resetData() {
+            if(confirm("Deseja apagar todos os dados e restaurar o padrão?")) {
+                localStorage.removeItem('dashboardNPS_data');
+                npsData = [...defaultData];
+                refreshDashboard();
+                showToast('Dados resetados para o padrão.', 'warning');
+            }
+        }
+
+        // --- Core Functions ---
+        
+        function refreshDashboard() {
+            refreshKPIs();
+            refreshTable();
+            refreshCharts();
+        }
+
+        function refreshKPIs() {
+            // Apply current filters to KPIs as well? Usually KPIs show global, but let's show global for now
+            // Or filtered? Let's show Global for KPIs to give "Big Picture"
+            // To make it dynamic based on filter, use filterData() result.
+            // Let's use Global for KPIs except table.
+            
+            const total = npsData.length;
+            const procedente = npsData.filter(d => d.status.toLowerCase() === 'procedente').length;
+            const improcedente = npsData.filter(d => d.status.toLowerCase() === 'improcedente').length;
+            const acaoRede = npsData.filter(d => (d.acaoRede || '').toLowerCase().includes('desligamento') || (d.acaoRede || '').toLowerCase().includes('advertência')).length;
+
+            // NPS Score Calculation: ((Promoters - Detractors) / Total) * 100
+            const promoters = npsData.filter(d => d.nota >= 9).length;
+            const detractors = npsData.filter(d => d.nota <= 6).length;
+            const npsScore = total > 0 ? ((promoters - detractors) / total) * 100 : 0;
+
+            updateNumber('kpi-total', total);
+            updateNumber('kpi-procedente', procedente);
+            updateNumber('kpi-improcedente', improcedente);
+            updateNumber('kpi-acao-rede', acaoRede);
+            updateNumber('kpi-score', Math.round(npsScore));
+
+            document.getElementById('kpi-procedente-pct').textContent = total ? Math.round((procedente/total)*100) + '%' : '0%';
+            document.getElementById('kpi-improcedente-pct').textContent = total ? Math.round((improcedente/total)*100) + '%' : '0%';
+        }
+
+        // Helper to parse DD/MM/YYYY to Date object
+        function parseDate(dateStr) {
+            if(!dateStr) return null;
+            const parts = dateStr.split('/');
+            if (parts.length === 3) {
+                return new Date(parts[2], parts[1] - 1, parts[0]);
+            }
+            return null;
+        }
+
+        function getFilteredData() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('filterStatus').value;
+            const dateStart = document.getElementById('filterDateStart').valueAsDate;
+            const dateEnd = document.getElementById('filterDateEnd').valueAsDate;
+
+            return npsData.filter(item => {
+                // Text Search
+                const matchesText = String(item.assistencia).includes(term) || 
+                                    (item.analista || '').toLowerCase().includes(term) ||
+                                    (item.prestador || '').toLowerCase().includes(term);
+
+                // Status Filter
+                const matchesStatus = statusFilter === "" || item.status === statusFilter;
+
+                // Date Filter
+                let matchesDate = true;
+                if (dateStart || dateEnd) {
+                    const itemDate = parseDate(item.data);
+                    if (itemDate) {
+                        if (dateStart && itemDate < dateStart) matchesDate = false;
+                        if (dateEnd && itemDate > dateEnd) matchesDate = false;
+                    }
+                }
+
+                return matchesText && matchesStatus && matchesDate;
+            });
+        }
+
+        function refreshTable() {
+            const filtered = getFilteredData();
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            const toShow = filtered.slice(0, visibleItems);
+
+            toShow.forEach((row) => {
+                // Determine actual index in main array for edit/delete logic
+                const realIndex = npsData.indexOf(row);
+                
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-indigo-50/50 transition-colors border-b border-gray-100 last:border-0 fade-in";
+                
+                let statusBadge = "bg-gray-100 text-gray-800";
+                if(row.status === 'Procedente') statusBadge = "bg-red-100 text-red-800 border border-red-200";
+                if(row.status === 'Improcedente') statusBadge = "bg-green-100 text-green-800 border border-green-200";
+
+                tr.innerHTML = `
+                    <td class="p-4 font-bold text-indigo-900">#${row.assistencia}</td>
+                    <td class="p-4 text-gray-500">${row.data || '-'}</td>
+                    <td class="p-4">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${row.nota < 7 ? 'bg-red-50 text-red-600' : (row.nota >= 9 ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600')}">
+                            ${row.nota}
+                        </span>
+                    </td>
+                    <td class="p-4 text-gray-700">${row.analista}</td>
+                    <td class="p-4 text-gray-600 text-xs truncate max-w-[150px]" title="${row.prestador}">${row.prestador}</td>
+                    <td class="p-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadge}">
+                            ${row.status}
+                        </span>
+                    </td>
+                    <td class="p-4 text-right">
+                        <div class="flex justify-end gap-1">
+                            <button onclick="viewDetails(${realIndex})" class="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-white rounded-md transition-colors" title="Ver"><i data-lucide="eye" class="h-4 w-4"></i></button>
+                            <button onclick="editRecord(${realIndex})" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded-md transition-colors" title="Editar"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
+                            <button onclick="deleteRecord(${realIndex})" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-white rounded-md transition-colors" title="Excluir"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            lucide.createIcons();
+
+            // Footer Logic
+            document.getElementById('showingCount').textContent = `Mostrando ${toShow.length} de ${filtered.length} registros`;
+            const btn = document.getElementById('loadMoreBtn');
+            if (visibleItems < filtered.length) {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        function refreshCharts() {
+            // Data Prep
+            const motivosCount = {};
+            const analistasMap = {}; 
+
+            npsData.forEach(d => {
+                // Motivos
+                const m = d.motivo || "Não informado";
+                motivosCount[m] = (motivosCount[m] || 0) + 1;
+
+                // Analistas
+                const a = d.analista || "Desconhecido";
+                if (!analistasMap[a]) analistasMap[a] = { Proc: 0, Impr: 0 };
+                if (d.status === 'Procedente') analistasMap[a].Proc++;
+                if (d.status === 'Improcedente') analistasMap[a].Impr++;
+            });
+
+            // Destroy old charts
+            if (chartInstances.motivos) chartInstances.motivos.destroy();
+            if (chartInstances.analistas) chartInstances.analistas.destroy();
+
+            // Chart 1: Motivos
+            chartInstances.motivos = new Chart(document.getElementById('chartMotivos'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(motivosCount),
+                    datasets: [{
+                        label: 'Ocorrências',
+                        data: Object.values(motivosCount),
+                        backgroundColor: '#6366f1',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } }
+                }
+            });
+
+            // Chart 2: Analistas
+            const labels = Object.keys(analistasMap);
+            chartInstances.analistas = new Chart(document.getElementById('chartAnalistas'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Procedente', data: labels.map(l => analistasMap[l].Proc), backgroundColor: '#ef4444', borderRadius: 4 },
+                        { label: 'Improcedente', data: labels.map(l => analistasMap[l].Impr), backgroundColor: '#22c55e', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } }
+                }
+            });
+        }
+
+        // --- Interaction Functions ---
+
+        function loadMore() {
+            visibleItems += 5;
+            refreshTable();
+        }
+
+        function updateNumber(id, newValue) {
+            document.getElementById(id).textContent = newValue;
+        }
+
+        function clearFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('filterStatus').value = '';
+            document.getElementById('filterDateStart').value = '';
+            document.getElementById('filterDateEnd').value = '';
+            visibleItems = 5;
+            refreshTable();
+            showToast("Filtros limpos", "info");
+        }
+
+        // --- CRUD Operations ---
+
+        function openFormModal(index = -1) {
+            const modal = document.getElementById('formModal');
+            const title = document.getElementById('formModalTitle');
+            const form = document.getElementById('recordForm');
+            
+            form.reset();
+            document.getElementById('editIndex').value = index;
+
+            if (index >= 0) {
+                title.textContent = "Editar Registro";
+                const item = npsData[index];
+                document.getElementById('inpAssistencia').value = item.assistencia;
+                document.getElementById('inpData').value = item.data;
+                document.getElementById('inpNota').value = item.nota;
+                document.getElementById('inpAnalista').value = item.analista;
+                document.getElementById('inpPrestador').value = item.prestador;
+                document.getElementById('inpStatus').value = item.status;
+                document.getElementById('inpMotivo').value = item.motivo;
+                document.getElementById('inpComentario').value = item.comentario;
+                document.getElementById('inpAcao').value = item.acaoRede;
+            } else {
+                title.textContent = "Novo Registro";
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            const index = parseInt(document.getElementById('editIndex').value);
+            const nota = parseInt(document.getElementById('inpNota').value);
+            
+            const newData = {
+                assistencia: document.getElementById('inpAssistencia').value,
+                data: document.getElementById('inpData').value,
+                nota: nota,
+                categoria: nota <= 6 ? 'Detrator' : (nota >= 9 ? 'Promotor' : 'Neutro'),
+                analista: document.getElementById('inpAnalista').value,
+                prestador: document.getElementById('inpPrestador').value,
+                status: document.getElementById('inpStatus').value,
+                motivo: document.getElementById('inpMotivo').value,
+                comentario: document.getElementById('inpComentario').value,
+                acaoRede: document.getElementById('inpAcao').value,
+                // Default filler for new items
+                cliente: index >= 0 ? npsData[index].cliente : "Não Informado",
+                uf: index >= 0 ? npsData[index].uf : "-",
+                cidade: index >= 0 ? npsData[index].cidade : "-"
+            };
+
+            if (index >= 0) {
+                npsData[index] = { ...npsData[index], ...newData };
+                showToast("Registro atualizado com sucesso!", "success");
+            } else {
+                npsData.unshift(newData);
+                showToast("Novo registro adicionado!", "success");
+            }
+
+            saveData();
+            closeModal('formModal');
+            refreshDashboard();
+        }
+
+        function editRecord(index) {
+            openFormModal(index);
+        }
+
+        function deleteRecord(index) {
+            // Using custom confirmation could be next step, keeping confirm() for simplicity but saving state
+            if(confirm('Tem certeza que deseja excluir este registro?')) {
+                npsData.splice(index, 1);
+                saveData();
+                refreshDashboard();
+                showToast("Registro excluído.", "warning");
+            }
+        }
+
+        function viewDetails(index) {
+            const item = npsData[index];
+            const content = document.getElementById('detailsContent');
+            
+            let html = `<div class="grid grid-cols-2 gap-4 mb-4">`;
+            for (const [key, value] of Object.entries(item)) {
+                if(key !== 'comentario' && key !== 'nota') {
+                     html += `<div><p class="text-xs text-gray-400 uppercase font-bold">${key}</p><p class="text-sm font-medium">${value}</p></div>`;
+                }
+            }
+            html += `</div>`;
+            html += `<div class="bg-gray-50 p-3 rounded border"><p class="text-xs text-gray-400 uppercase font-bold mb-1">Comentário</p><p class="text-sm">${item.comentario}</p></div>`;
+            
+            content.innerHTML = html;
+            document.getElementById('detailsModal').classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // --- UI Utilities (Toasts) ---
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let colors = "bg-gray-800 border-gray-700";
+            if(type === 'success') colors = "bg-green-600 border-green-500";
+            if(type === 'warning') colors = "bg-red-500 border-red-400";
+            if(type === 'info') colors = "bg-indigo-600 border-indigo-500";
+
+            toast.className = `p-4 rounded-lg shadow-xl text-white text-sm font-medium flex items-center justify-between min-w-[300px] border-l-4 toast-enter ${colors}`;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <button onclick="this.parentElement.remove()" class="ml-4 hover:text-gray-200"><i data-lucide="x" class="h-4 w-4"></i></button>
+            `;
+            
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // --- Excel Import ---
+        function handleExcelUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(sheet);
+
+                if (json.length > 0) {
+                    const imported = json.map(row => ({
+                        assistencia: row['Assistencia'] || row['ID'] || row['assistencia'] || "000000",
+                        data: row['Data'] || row['data'] || "-",
+                        nota: row['Nota'] || row['NPS'] || 0,
+                        analista: row['Analista'] || "Importado",
+                        prestador: row['Prestador'] || row['Nome Fantasia'] || "Desconhecido",
+                        status: row['Status'] || "Em Análise",
+                        motivo: row['Motivo'] || "Não classificado",
+                        comentario: row['Comentário'] || row['Obs'] || "",
+                        acaoRede: row['Ação Rede'] || "Nenhuma",
+                        cliente: row['Cliente'] || "-",
+                        uf: row['UF'] || "-"
+                    }));
+
+                    npsData = [...npsData, ...imported];
+                    saveData();
+                    refreshDashboard();
+                    showToast(`${imported.length} registros importados!`, 'success');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            e.target.value = '';
+        }
+
+        // --- Export CSV ---
+        function exportToCSV() {
+            const headers = ["Assistencia", "Data", "Nota", "Analista", "Prestador", "Motivo", "Status", "Comentario"];
+            const csvRows = [];
+            csvRows.push(headers.join(','));
+
+            npsData.forEach(row => {
+                const values = [
+                    row.assistencia,
+                    row.data,
+                    row.nota,
+                    `"${row.analista}"`, 
+                    `"${row.prestador}"`,
+                    `"${row.motivo}"`,
+                    row.status,
+                    `"${(row.comentario || '').replace(/"/g, '""')}"`
+                ];
+                csvRows.push(values.join(','));
+            });
+
+            const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "nps_data_export.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("Download do CSV iniciado", "info");
+        }
+
+        window.onclick = function(event) {
+            if (event.target.classList.contains('fixed')) {
+                event.target.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
