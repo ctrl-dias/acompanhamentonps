@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 2.2 - Gestão Inteligente</title>
+    <title>Dashboard NPS 2.3 - Gestão Completa</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -35,13 +35,21 @@
         .custom-checkbox { cursor: pointer; accent-color: #4f46e5; width: 16px; height: 16px; }
         .sort-icon { display: inline-block; width: 12px; margin-left: 4px; opacity: 0.5; }
         th:hover .sort-icon { opacity: 1; }
+        
+        /* Product Selection Styles */
+        .btn-prod { transition: all 0.2s; border: 2px solid transparent; opacity: 0.5; filter: grayscale(0.8); }
+        .btn-prod:hover { opacity: 0.8; filter: grayscale(0); }
+        .btn-prod.selected { opacity: 1; filter: grayscale(0); transform: scale(1.02); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        
+        .btn-hdi.selected { border-color: #16a34a; background-color: #f0fdf4; color: #15803d; }
+        .btn-yelum.selected { border-color: #ca8a04; background-color: #fefce8; color: #a16207; }
     </style>
 
     <!-- Módulo Único de Aplicação (Lógica + Firebase) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, writeBatch, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // =================================================================
         // CONFIGURAÇÃO FIREBASE
@@ -65,8 +73,9 @@
         let chartInstances = {};
         let activeChartFilter = null;
         let selectedRecordId = null;
-        let sortConfig = { key: 'data', direction: 'desc' }; // Configuração de ordenação
+        let sortConfig = { key: 'data', direction: 'desc' }; 
         const COLLECTION_NAME = "nps_records";
+        const COLLECTION_LOGS = "nps_audit_logs"; 
         const RISK_KEYWORDS = ['procon', 'advogado', 'justiça', 'ameaça', 'reclame aqui', 'susep', 'processo'];
 
         // --- Inicialização Firebase ---
@@ -80,19 +89,25 @@
             alert("Erro crítico ao iniciar Firebase.");
         }
 
-        // --- Funções Auxiliares ---
-        function checkRisk(text) { 
-            return text && RISK_KEYWORDS.some(k => text.toLowerCase().includes(k)); 
+        // --- Sistema de Auditoria ---
+        async function logAudit(action, details) {
+            if (!currentAnalista) return;
+            try {
+                await addDoc(collection(db, COLLECTION_LOGS), {
+                    action: action, details: details, user: currentAnalista, timestamp: new Date().toISOString()
+                });
+            } catch(e) { console.error("Log error", e); }
         }
-        
+
+        // --- Funções Auxiliares ---
+        function checkRisk(text) { return text && RISK_KEYWORDS.some(k => text.toLowerCase().includes(k)); }
         function parseDate(d) { 
             if(!d) return 0; 
-            // Handle ISO string from Date object
             if (d.includes('-') && d.includes('T')) return new Date(d).getTime();
-            // Handle DD/MM/YYYY
             if(d.includes('/')) { const p=d.split('/'); return new Date(p[2],p[1]-1,p[0]).getTime(); } 
             return 0; 
         }
+        function getInitials(name) { return name ? name.substring(0,2).toUpperCase() : '--'; }
 
         function showToast(msg, type='info') {
             const container = document.getElementById('toast-container');
@@ -100,89 +115,52 @@
             t.className = `p-4 rounded shadow-xl text-white text-sm bg-gray-800 border-l-4 border-indigo-500 toast-enter flex items-center gap-2 mb-2`;
             if(type==='warning') t.classList.replace('bg-gray-800', 'bg-red-600');
             if(type==='success') t.classList.replace('bg-gray-800', 'bg-green-600');
-            
-            let icon = '<i data-lucide="info" class="w-4 h-4"></i>';
-            if(type==='warning') icon = '<i data-lucide="alert-triangle" class="w-4 h-4"></i>';
-            if(type==='success') icon = '<i data-lucide="check-circle" class="w-4 h-4"></i>';
-
-            t.innerHTML = `${icon} <span>${msg}</span>`;
+            t.innerHTML = `<span>${msg}</span>`;
             if(container) container.appendChild(t);
-            lucide.createIcons();
             setTimeout(()=>t.remove(), 4000);
         }
-
-        function getInitials(name) { return name ? name.substring(0,2).toUpperCase() : '--'; }
 
         // --- Lógica de Conexão ---
         async function initAppLogic() {
             try {
                 await signInAnonymously(auth);
-                console.log("Autenticado.");
                 startDataListener();
             } catch (error) {
                 console.error("Auth Erro:", error);
                 const loader = document.getElementById('loadingIndicator');
-                if(loader) loader.innerHTML = `<span class="text-red-600 font-bold">Erro de Autenticação: ${error.message}</span>`;
+                if(loader) loader.innerHTML = `<span class="text-red-600 font-bold">Erro: ${error.message}</span>`;
             }
         }
 
         function startDataListener() {
             const q = query(collection(db, COLLECTION_NAME));
-            
             onSnapshot(q, (snapshot) => {
-                npsData = snapshot.docs.map(doc => ({
-                    firebaseId: doc.id,
-                    ...doc.data()
-                }));
-                
-                applySorting(); // Aplica ordenação inicial
+                npsData = snapshot.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }));
+                applySorting(); 
                 refreshDashboard();
-                
                 const loader = document.getElementById('loadingIndicator');
                 if(loader) loader.classList.add('hidden');
-                
-            }, (error) => {
-                console.error("Firestore Erro:", error);
-                showToast("Erro de conexão com o banco de dados.", "warning");
             });
         }
 
-        // --- Ordenação ---
         function applySorting() {
             npsData.sort((a, b) => {
-                let valA = a[sortConfig.key];
-                let valB = b[sortConfig.key];
-
-                if (sortConfig.key === 'data') {
-                    valA = parseDate(valA);
-                    valB = parseDate(valB);
-                } else if (sortConfig.key === 'nota' || sortConfig.key === 'assistencia') {
-                    valA = Number(valA) || 0;
-                    valB = Number(valB) || 0;
-                } else {
-                    valA = (valA || '').toString().toLowerCase();
-                    valB = (valB || '').toString().toLowerCase();
-                }
-
-                if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-                if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-                return 0;
+                let valA = a[sortConfig.key], valB = b[sortConfig.key];
+                if (sortConfig.key === 'data') { valA = parseDate(valA); valB = parseDate(valB); }
+                else if (['nota'].includes(sortConfig.key)) { valA = Number(valA)||0; valB = Number(valB)||0; }
+                else { valA = (valA||'').toString().toLowerCase(); valB = (valB||'').toString().toLowerCase(); }
+                return sortConfig.direction === 'asc' ? (valA < valB ? -1 : 1) : (valA > valB ? -1 : 1);
             });
         }
 
         window.sortTable = (key) => {
-            if (sortConfig.key === key) {
-                sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortConfig.key = key;
-                sortConfig.direction = 'desc'; // Padrão decrescente para novos sorts
-            }
+            sortConfig.direction = (sortConfig.key === key && sortConfig.direction === 'asc') ? 'desc' : 'asc';
+            sortConfig.key = key;
             applySorting();
             refreshTable();
         };
 
-        // --- Lógica de UI (Dashboard) ---
-
+        // --- Dashboard UI ---
         function refreshDashboard() {
             refreshKPIs();
             refreshTable();
@@ -194,11 +172,9 @@
             const procedentes = npsData.filter(d => d.status === 'Procedente').length;
             const risco = npsData.filter(d => checkRisk(d.comentario)).length;
             const rede = npsData.filter(d => d.acaoRede && d.acaoRede !== 'Nenhuma').length;
-            
-            // Cálculo NPS Real
-            const promotores = npsData.filter(d => d.nota >= 9).length;
-            const detratores = npsData.filter(d => d.nota <= 6).length;
-            const npsScore = total > 0 ? Math.round(((promotores - detratores) / total) * 100) : 0;
+            const prom = npsData.filter(d => d.nota >= 9).length;
+            const det = npsData.filter(d => d.nota <= 6).length;
+            const npsScore = total > 0 ? Math.round(((prom - det) / total) * 100) : 0;
 
             document.getElementById('kpi-total').textContent = total;
             document.getElementById('kpi-procedente').textContent = procedentes;
@@ -206,52 +182,30 @@
             document.getElementById('kpi-risco').textContent = risco;
             document.getElementById('kpi-acao-rede').textContent = rede;
             
-            // NPS Score Card
-            const kpiScoreEl = document.getElementById('kpi-nps-score');
-            kpiScoreEl.textContent = npsScore;
-            
-            // Cor do NPS
-            const kpiScoreContainer = document.getElementById('kpi-score-container');
-            kpiScoreContainer.className = `bg-white p-5 rounded-xl card-shadow border-l-4 flex flex-col justify-between hover:translate-y-[-2px] transition-transform ${
-                npsScore >= 75 ? 'border-green-500' : 
-                npsScore >= 50 ? 'border-yellow-500' : 
-                npsScore >= 0 ? 'border-orange-500' : 'border-red-600'
-            }`;
-            
-            const kpiScoreText = document.getElementById('kpi-nps-text');
-            kpiScoreText.className = `text-3xl font-bold mt-2 ${
-                npsScore >= 75 ? 'text-green-600' : 
-                npsScore >= 50 ? 'text-yellow-600' : 
-                npsScore >= 0 ? 'text-orange-600' : 'text-red-700'
-            }`;
+            const scoreEl = document.getElementById('kpi-nps-score');
+            scoreEl.textContent = npsScore;
+            const container = document.getElementById('kpi-score-container');
+            container.className = `bg-white p-5 rounded-xl card-shadow border-l-4 flex flex-col justify-between hover:translate-y-[-2px] transition-transform ${npsScore >= 75 ? 'border-green-500' : npsScore >= 50 ? 'border-yellow-500' : npsScore >= 0 ? 'border-orange-500' : 'border-red-600'}`;
+            document.getElementById('kpi-nps-text').className = `text-3xl font-bold mt-2 ${npsScore >= 75 ? 'text-green-600' : npsScore >= 50 ? 'text-yellow-600' : npsScore >= 0 ? 'text-orange-600' : 'text-red-700'}`;
         }
 
         function getFilteredData() {
             const term = document.getElementById('searchInput').value.toLowerCase();
             const status = document.getElementById('filterStatus').value;
-            const dateStart = document.getElementById('filterDateStart').valueAsDate;
-            const dateEnd = document.getElementById('filterDateEnd').valueAsDate;
+            const start = document.getElementById('filterDateStart').valueAsDate;
+            const end = document.getElementById('filterDateEnd').valueAsDate;
 
             return npsData.filter(i => {
-                const textMatch = String(i.assistencia).includes(term) || 
-                                  (i.prestador||'').toLowerCase().includes(term) ||
-                                  (i.analista||'').toLowerCase().includes(term) ||
-                                  (i.fa||'').toLowerCase().includes(term) ||
-                                  (i.tipoServico||'').toLowerCase().includes(term);
-                
+                const textMatch = String(i.assistencia).includes(term) || (i.prestador||'').toLowerCase().includes(term) || (i.analista||'').toLowerCase().includes(term) || (i.fa||'').toLowerCase().includes(term) || (i.cidade||'').toLowerCase().includes(term);
                 let statusMatch = true;
                 if(status === 'RISCO') statusMatch = checkRisk(i.comentario);
                 else if(status) statusMatch = i.status === status;
                 
                 let dateMatch = true;
-                if (dateStart || dateEnd) {
+                if (start || end) {
                     const d = parseDate(i.data);
-                    if (d) {
-                        if (dateStart && d < dateStart.getTime()) dateMatch = false;
-                        if (dateEnd && d > dateEnd.getTime()) dateMatch = false;
-                    }
+                    if (d) { if (start && d < start.getTime()) dateMatch = false; if (end && d > end.getTime()) dateMatch = false; }
                 }
-
                 let chartMatch = true;
                 if(activeChartFilter) {
                     if(activeChartFilter.type === 'motivo') chartMatch = i.motivo === activeChartFilter.value;
@@ -267,43 +221,42 @@
             if(!tbody) return;
             tbody.innerHTML = '';
             
-            const showingEl = document.getElementById('showingCount');
-            const loadBtn = document.getElementById('loadMoreBtn');
-
-            if (filtered.length === 0) {
-                if(showingEl) showingEl.textContent = npsData.length === 0 ? "Banco de dados vazio." : "Nenhum resultado para os filtros.";
-                if(loadBtn) loadBtn.classList.add('hidden');
-            } else {
-                if(showingEl) showingEl.textContent = `Mostrando ${Math.min(visibleItems, filtered.length)} de ${filtered.length} registros`;
-                if(loadBtn) loadBtn.classList.toggle('hidden', visibleItems >= filtered.length);
-            }
+            document.getElementById('showingCount').textContent = `Mostrando ${Math.min(visibleItems, filtered.length)} de ${filtered.length} registros`;
+            document.getElementById('loadMoreBtn').classList.toggle('hidden', visibleItems >= filtered.length);
 
             filtered.slice(0, visibleItems).forEach(row => {
                 const isRisk = checkRisk(row.comentario);
                 const isSel = selectedIds.has(row.firebaseId);
                 const tr = document.createElement('tr');
                 tr.className = `group hover:bg-indigo-50 transition border-b border-gray-100 last:border-0 ${isRisk ? 'bg-red-50' : ''}`;
+                let statusClass = row.status==='Procedente' ? 'bg-red-100 text-red-800' : row.status==='Improcedente' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
                 
-                let statusClass = row.status==='Procedente' ? 'bg-red-100 text-red-800' : 
-                                  row.status==='Improcedente' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+                // Product Badge Logic
+                let prodBadge = '';
+                if(row.produto === 'HDI') prodBadge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">HDI</span>';
+                else if(row.produto === 'YELUM') prodBadge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">YELUM</span>';
 
                 tr.innerHTML = `
                     <td class="p-4 text-center w-10"><input type="checkbox" class="custom-checkbox row-cb cursor-pointer" data-id="${row.firebaseId}" ${isSel ? 'checked' : ''} onchange="window.toggleSelectRow('${row.firebaseId}')"></td>
-                    <td class="p-4 font-bold text-indigo-900 whitespace-nowrap">#${row.assistencia} ${isRisk ? '<span class="risk-badge bg-red-600 text-white text-[10px] px-2 py-0.5 rounded ml-2 uppercase">RISCO</span>' : ''}</td>
+                    <td class="p-4 font-bold text-indigo-900 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            ${prodBadge} <span>#${row.assistencia}</span>
+                            ${isRisk ? '<span class="risk-badge bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">!</span>' : ''}
+                        </div>
+                    </td>
                     <td class="p-4 text-gray-500 whitespace-nowrap text-xs">${row.data || '-'}</td>
                     <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold ${row.nota < 7 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${row.nota}</span></td>
-                    <td class="p-4 text-gray-700 text-sm">${row.analista}</td>
-                    <td class="p-4 text-gray-600 text-xs max-w-[200px] truncate" title="${row.fa || ''} ${row.prestador}">
+                    <td class="p-4 text-gray-600 text-xs truncate max-w-[120px]" title="${row.cidade} - ${row.uf}">${row.cidade ? `${row.cidade}-${row.uf}` : '-'}</td>
+                    <td class="p-4 text-gray-600 text-xs max-w-[180px] truncate" title="${row.fa || ''} ${row.prestador}">
                         ${row.fa ? `<span class="font-bold text-indigo-700 bg-indigo-50 px-1 rounded mr-1">${row.fa}</span>` : ''} ${row.prestador}
                     </td>
-                    <td class="p-4 text-gray-600 text-xs">${row.tipoServico || '-'}</td>
+                    <td class="p-4 text-gray-500 text-xs truncate max-w-[100px]">${row.tipoServico || '-'}</td>
                     <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-medium border ${statusClass}">${row.status}</span></td>
                     <td class="p-4 text-right">
                         <div class="flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                            <button onclick="window.viewDetails('${row.firebaseId}')" class="p-1.5 hover:text-indigo-600 hover:bg-white rounded" title="Ver Detalhes"><i data-lucide="eye" class="h-4 w-4"></i></button>
-                            <button onclick="window.duplicateRecord('${row.firebaseId}')" class="p-1.5 hover:text-green-600 hover:bg-white rounded" title="Duplicar"><i data-lucide="copy" class="h-4 w-4"></i></button>
-                            <button onclick="window.openFormModal('${row.firebaseId}')" class="p-1.5 hover:text-blue-600 hover:bg-white rounded" title="Editar"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
-                            <button onclick="window.confirmSingleDelete('${row.firebaseId}')" class="p-1.5 hover:text-red-600 hover:bg-white rounded" title="Excluir"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                            <button onclick="window.viewDetails('${row.firebaseId}')" class="p-1 hover:text-indigo-600"><i data-lucide="eye" class="h-4 w-4"></i></button>
+                            <button onclick="window.openFormModal('${row.firebaseId}')" class="p-1 hover:text-blue-600"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
+                            <button onclick="window.confirmSingleDelete('${row.firebaseId}')" class="p-1 hover:text-red-600"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
                         </div>
                     </td>
                 `;
@@ -312,134 +265,54 @@
             lucide.createIcons();
         }
 
-        // --- Gráficos (Prestadores no lugar de Analistas) ---
+        // --- Gráficos ---
         function refreshCharts() {
             const m = {}; const p = {};
             npsData.forEach(d => { 
                 m[d.motivo||'Outros'] = (m[d.motivo||'Outros']||0)+1;
-                // Count providers
                 const prest = d.prestador || 'Desconhecido';
                 p[prest] = (p[prest]||0)+1; 
             });
             
-            // Process Top Providers (Sort by count desc and take top 10)
-            const topPrestadores = Object.entries(p)
-                .sort((a,b) => b[1] - a[1])
-                .slice(0, 10);
+            const topP = Object.entries(p).sort((a,b) => b[1] - a[1]).slice(0, 10);
             
-            drawChart('chartMotivos', 'bar', Object.keys(m), Object.values(m), (i)=> {
-                activeChartFilter={type:'motivo',value:Object.keys(m)[i]}; 
-                refreshTable();
-            });
-
-            drawChart('chartPrestadores', 'bar', topPrestadores.map(e => e[0]), topPrestadores.map(e => e[1]), (i)=> {
-                activeChartFilter={type:'prestador',value:topPrestadores[i][0]}; 
-                refreshTable();
-            }, true); // true for horizontal bar if names are long
+            drawChart('chartMotivos', 'bar', Object.keys(m), Object.values(m), (i)=> { activeChartFilter={type:'motivo',value:Object.keys(m)[i]}; refreshTable(); });
+            drawChart('chartPrestadores', 'bar', topP.map(e => e[0]), topP.map(e => e[1]), (i)=> { activeChartFilter={type:'prestador',value:topP[i][0]}; refreshTable(); }, true);
         }
 
-        function drawChart(id, t, l, d, cb, horizontal = false) {
-            const canvas = document.getElementById(id);
-            if(!canvas) return;
+        function drawChart(id, t, l, d, cb, horiz = false) {
+            const cvs = document.getElementById(id); if(!cvs) return;
             if(chartInstances[id]) chartInstances[id].destroy();
-            
-            chartInstances[id] = new Chart(canvas, {
-                type: t, 
-                data:{
-                    labels:l,
-                    datasets:[{
-                        label: 'Qtd',
-                        data:d, 
-                        backgroundColor: '#6366f1',
-                        borderRadius: 4,
-                        barPercentage: 0.6
-                    }]
-                }, 
-                options:{
-                    indexAxis: horizontal ? 'y' : 'x', // Horizontal option
-                    maintainAspectRatio: false,
-                    responsive: true,
-                    plugins:{legend:{display:false}}, 
-                    onClick:(e,el)=>{if(cb && el.length)cb(el[0].index)},
-                    scales: {
-                        x: { grid: { display: false }, beginAtZero: true },
-                        y: { beginAtZero: true, grid: { borderDash: [2, 4] } }
-                    }
-                }
+            chartInstances[id] = new Chart(cvs, {
+                type: t, data:{labels:l,datasets:[{label:'Qtd',data:d,backgroundColor:'#6366f1',borderRadius:4,barPercentage:0.6}]}, 
+                options:{indexAxis: horiz?'y':'x', maintainAspectRatio:false, plugins:{legend:{display:false}}, onClick:(e,el)=>{if(cb&&el.length)cb(el[0].index)}, scales:{x:{grid:{display:false},beginAtZero:true},y:{beginAtZero:true,grid:{borderDash:[2,4]}}}}
             });
         }
 
-        // --- EXPORTAR / IMPORTAR / DUPLICAR ---
-        
-        window.duplicateRecord = async function(id) {
-            const original = npsData.find(d => d.firebaseId === id);
-            if (!original) return;
+        // --- Product Selection Logic ---
+        window.selectProduct = function(prod) {
+            document.getElementById('inpProduto').value = prod;
+            const btnHDI = document.getElementById('btnHDI');
+            const btnYelum = document.getElementById('btnYelum');
             
-            if(confirm("Deseja duplicar este registro?")) {
-                const copy = { ...original };
-                delete copy.firebaseId; // Remove ID to create new
-                copy.createdAt = new Date().toISOString();
-                copy.analista = currentAnalista; // Assign to current user
-                
-                try {
-                    await addDoc(collection(db, COLLECTION_NAME), copy);
-                    showToast("Registro duplicado com sucesso!", "success");
-                } catch(e) {
-                    showToast("Erro ao duplicar.", "warning");
-                }
+            if (prod === 'HDI') {
+                btnHDI.classList.add('selected');
+                btnYelum.classList.remove('selected');
+            } else if (prod === 'YELUM') {
+                btnYelum.classList.add('selected');
+                btnHDI.classList.remove('selected');
+            } else {
+                btnHDI.classList.remove('selected');
+                btnYelum.classList.remove('selected');
             }
         };
 
-        window.exportToExcel = function() {
-            if(!npsData.length) { showToast("Não há dados para exportar.", "warning"); return; }
-            const ws = XLSX.utils.json_to_sheet(npsData.map(d => ({
-                "ID": d.assistencia, "Data": d.data, "Nota": d.nota, "Analista": d.analista,
-                "FA": d.fa, "Prestador": d.prestador, "Tipo Serviço": d.tipoServico, 
-                "Status": d.status, "Motivo": d.motivo,
-                "Ação": d.acaoRede, "Comentário": d.comentario, "Risco": checkRisk(d.comentario) ? "SIM" : "NÃO"
-            })));
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Base NPS");
-            XLSX.writeFile(wb, "NPS_Exportacao.xlsx");
-            showToast("Download iniciado!", "success");
-        };
-
-        window.downloadTemplate = function() {
-            const ws = XLSX.utils.json_to_sheet([
-                { "Assistencia": "123456", "Data": "01/01/2026", "Nota": 0, "Analista": "Nome", "Prestador": "Empresa X", "FA": "FA1234", "Tipo Servico": "Linha Branca", "Status": "Procedente", "Motivo": "Atraso", "Ação Rede": "Advertência", "Comentário": "Cliente reclamou de..." }
-            ]);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Modelo");
-            XLSX.writeFile(wb, "Modelo_Importacao_NPS.xlsx");
-            showToast("Modelo baixado!", "success");
-        };
-
-        // --- FUNÇÕES DE INTERFACE (Window) ---
-        
-        window.performLogin = function() {
-            const name = document.getElementById('loginName').value.trim();
-            const pin = document.getElementById('loginPin').value.trim();
-            if(!name || pin.length !== 4) { alert("Preencha nome e PIN (4 dígitos)."); return; }
-            currentAnalista = name;
-            localStorage.setItem('nps_user_name', name);
-            document.getElementById('loginModal').classList.add('hidden');
-            document.getElementById('userNameDisplay').textContent = getInitials(name);
-            document.getElementById('userNameDisplay').title = name;
-            showToast(`Bem-vindo, ${name}!`, 'success');
-            initAppLogic();
-        };
-
-        window.logout = function() {
-            if(confirm("Sair do sistema?")) {
-                localStorage.removeItem('nps_user_name');
-                location.reload();
-            }
-        };
-
+        // --- Modals & CRUD ---
         window.openFormModal = function(id = null) {
-            const form = document.getElementById('recordForm');
-            form.reset();
+            document.getElementById('recordForm').reset();
             document.getElementById('inpAnalista').value = currentAnalista;
+            window.selectProduct(''); // Reset product selection
+            
             if(id) {
                 const i = npsData.find(d => d.firebaseId === id);
                 if(i) {
@@ -450,17 +323,21 @@
                     document.getElementById('inpPrestador').value = i.prestador;
                     document.getElementById('inpFA').value = i.fa || '';
                     document.getElementById('inpTipoServico').value = i.tipoServico || '';
+                    document.getElementById('inpCidade').value = i.cidade || '';
+                    document.getElementById('inpUF').value = i.uf || '';
                     document.getElementById('inpStatus').value = i.status;
                     document.getElementById('inpMotivo').value = i.motivo;
                     document.getElementById('inpComentario').value = i.comentario;
                     document.getElementById('inpAcao').value = i.acaoRede;
-                    document.getElementById('formModalTitle').textContent = "Editar Registro";
+                    window.selectProduct(i.produto || '');
+                    document.getElementById('formModalTitle').innerHTML = `<i data-lucide="edit" class="h-4 w-4"></i> Editar Registro`;
                 }
             } else { 
                 document.getElementById('firebaseId').value = ""; 
-                document.getElementById('formModalTitle').textContent = "Novo Registro";
+                document.getElementById('formModalTitle').innerHTML = `<i data-lucide="plus-circle" class="h-4 w-4"></i> Novo Registro`;
             }
             document.getElementById('formModal').classList.remove('hidden');
+            lucide.createIcons();
         };
 
         window.handleFormSubmit = async function(e) {
@@ -471,6 +348,9 @@
                 data: document.getElementById('inpData').value,
                 nota: parseInt(document.getElementById('inpNota').value),
                 analista: document.getElementById('inpAnalista').value || currentAnalista,
+                produto: document.getElementById('inpProduto').value, // NEW
+                cidade: document.getElementById('inpCidade').value, // NEW
+                uf: document.getElementById('inpUF').value, // NEW
                 prestador: document.getElementById('inpPrestador').value,
                 fa: document.getElementById('inpFA').value,
                 tipoServico: document.getElementById('inpTipoServico').value,
@@ -481,37 +361,9 @@
             };
             window.closeModal('formModal');
             try {
-                if(id) { await updateDoc(doc(db, COLLECTION_NAME, id), rec); showToast("Atualizado!", "success"); } 
-                else { rec.createdAt = new Date().toISOString(); await addDoc(collection(db, COLLECTION_NAME), rec); showToast("Criado!", "success"); }
-            } catch(err) { console.error(err); showToast("Erro ao salvar.", "warning"); }
-        };
-
-        window.confirmSingleDelete = function(id) { 
-            selectedRecordId = id; 
-            document.getElementById('confirmText').textContent = "Excluir este registro?"; 
-            document.getElementById('confirmBtnAction').onclick = async () => {
-                window.closeModal('confirmModal');
-                try { await deleteDoc(doc(db, COLLECTION_NAME, selectedRecordId)); showToast("Excluído!", "success"); } catch(e) { showToast("Erro ao excluir", "warning"); }
-            };
-            document.getElementById('confirmModal').classList.remove('hidden'); 
-        };
-
-        window.confirmBatchDelete = function() {
-            if(!selectedIds.size) return;
-            document.getElementById('confirmText').textContent = `Excluir ${selectedIds.size} registros?`;
-            document.getElementById('confirmBtnAction').onclick = async () => {
-                window.closeModal('confirmModal');
-                try {
-                    const batch = writeBatch(db);
-                    selectedIds.forEach(id => batch.delete(doc(db, COLLECTION_NAME, id)));
-                    await batch.commit();
-                    showToast(`${selectedIds.size} excluídos!`, "success");
-                    selectedIds.clear();
-                    window.updateBulkUI();
-                    document.getElementById('selectAllCheckbox').checked = false;
-                } catch(e) { showToast("Erro em massa", "warning"); }
-            };
-            document.getElementById('confirmModal').classList.remove('hidden');
+                if(id) { await updateDoc(doc(db, COLLECTION_NAME, id), rec); logAudit('UPDATE', `ID: ${rec.assistencia}`); showToast("Atualizado!", "success"); } 
+                else { rec.createdAt = new Date().toISOString(); await addDoc(collection(db, COLLECTION_NAME), rec); logAudit('CREATE', `ID: ${rec.assistencia}`); showToast("Criado!", "success"); }
+            } catch(err) { showToast("Erro ao salvar.", "warning"); }
         };
 
         window.handleExcelUpload = function(e) {
@@ -532,7 +384,10 @@
                             comentario: r.Comentario || r.Obs || "",
                             analista: currentAnalista,
                             prestador: r.Prestador || r.prestador || "",
-                            tipoServico: r.TipoServico || r.Servico || r.Tipo || "",
+                            tipoServico: r.TipoServico || r.Servico || "",
+                            cidade: r.Cidade || "",
+                            uf: r.UF || "",
+                            produto: r.Produto || "",
                             motivo: r.Motivo || r.motivo || "",
                             fa: r.FA || r.fa || "",
                             acaoRede: r.Acao || r.acao || "",
@@ -540,6 +395,7 @@
                         });
                     });
                     await Promise.all(promises);
+                    logAudit('IMPORT', `Importou ${rows.length} registros.`);
                     showToast("Sucesso!", "success");
                 } catch(err) { showToast("Erro importação.", "warning"); }
             };
@@ -547,19 +403,40 @@
             e.target.value = '';
         };
 
-        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
+        window.exportToExcel = function() {
+            if(!npsData.length) { showToast("Sem dados.", "warning"); return; }
+            const ws = XLSX.utils.json_to_sheet(npsData.map(d => ({
+                "ID": d.assistencia, "Data": d.data, "Nota": d.nota, "Analista": d.analista, "Produto": d.produto,
+                "FA": d.fa, "Prestador": d.prestador, "Cidade": d.cidade, "UF": d.uf, "Tipo Serviço": d.tipoServico, 
+                "Status": d.status, "Motivo": d.motivo, "Ação": d.acaoRede, "Comentário": d.comentario, "Risco": checkRisk(d.comentario) ? "SIM" : "NÃO"
+            })));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Base NPS");
+            XLSX.writeFile(wb, "NPS_Exportacao.xlsx");
+            showToast("Download iniciado!", "success");
+        };
+
         window.viewDetails = (id) => {
             const i = npsData.find(d => d.firebaseId === id);
             if(!i) return;
+            
+            // Format Product badge for modal
+            let prodBadge = i.produto;
+            if(i.produto === 'HDI') prodBadge = `<span class="px-2 py-1 bg-green-100 text-green-800 font-bold rounded">HDI</span>`;
+            if(i.produto === 'YELUM') prodBadge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 font-bold rounded">YELUM</span>`;
+
             document.getElementById('detailsContent').innerHTML = `
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <span class="text-lg font-bold text-gray-800">#${i.assistencia}</span>
+                    <div>${prodBadge || '<span class="text-gray-400 italic">Sem produto</span>'}</div>
+                </div>
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">Assistência</p><p class="text-lg font-medium">${i.assistencia}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">Analista</p><p>${i.analista}</p></div>
                     <div><p class="text-xs text-gray-500 font-bold uppercase">Prestador</p><p>${i.prestador}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold uppercase">Local</p><p>${i.cidade || ''} - ${i.uf || ''}</p></div>
                     <div><p class="text-xs text-gray-500 font-bold uppercase">Serviço</p><p>${i.tipoServico || '-'}</p></div>
                     <div><p class="text-xs text-gray-500 font-bold uppercase">Motivo</p><p>${i.motivo}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">Data</p><p>${i.data}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">FA</p><p>${i.fa || '-'}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold uppercase">Analista</p><p>${i.analista}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold uppercase">Ação Rede</p><p>${i.acaoRede || '-'}</p></div>
                 </div>
                 <div class="bg-gray-50 p-4 rounded border border-gray-200">
                     <p class="text-xs text-gray-500 font-bold mb-2 uppercase">Comentário Técnico</p>
@@ -569,27 +446,56 @@
             document.getElementById('detailsModal').classList.remove('hidden');
         };
 
+        // Standard Window Functions
+        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
         window.toggleSelectRow = (id) => { if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id); window.updateBulkUI(); };
         window.toggleSelectAll = () => { const c = document.getElementById('selectAllCheckbox').checked; document.querySelectorAll('.row-cb').forEach(cb => { cb.checked = c; if(c) selectedIds.add(cb.getAttribute('data-id')); else selectedIds.delete(cb.getAttribute('data-id')); }); window.updateBulkUI(); };
         window.updateBulkUI = () => { const btn = document.getElementById('btnDeleteSelected'); if(selectedIds.size > 0) { btn.classList.remove('hidden'); btn.classList.add('flex'); document.getElementById('selectedCountText').textContent = `Excluir (${selectedIds.size})`; } else { btn.classList.add('hidden'); btn.classList.remove('flex'); } };
         window.loadMore = () => { visibleItems += 10; refreshTable(); };
         window.clearFilters = () => { document.getElementById('searchInput').value=''; document.getElementById('filterStatus').value=''; window.clearChartFilter(); };
         window.clearChartFilter = () => { activeChartFilter=null; refreshTable(); };
+        window.confirmSingleDelete = (id) => { selectedRecordId = id; document.getElementById('confirmModal').classList.remove('hidden'); document.getElementById('confirmBtnAction').onclick = async () => { window.closeModal('confirmModal'); await deleteDoc(doc(db, COLLECTION_NAME, selectedRecordId)); logAudit('DELETE', `ID: ${selectedRecordId}`); showToast('Excluído'); } };
+        window.confirmBatchDelete = () => { if(!selectedIds.size) return; document.getElementById('confirmModal').classList.remove('hidden'); document.getElementById('confirmBtnAction').onclick = async () => { window.closeModal('confirmModal'); const batch = writeBatch(db); selectedIds.forEach(id => batch.delete(doc(db, COLLECTION_NAME, id))); await batch.commit(); logAudit('BATCH DELETE', `${selectedIds.size} itens`); showToast('Excluídos'); selectedIds.clear(); window.updateBulkUI(); document.getElementById('selectAllCheckbox').checked = false; } };
+        window.duplicateRecord = async (id) => { const orig = npsData.find(d=>d.firebaseId===id); if(orig && confirm("Duplicar?")) { const copy={...orig}; delete copy.firebaseId; copy.createdAt=new Date().toISOString(); copy.analista=currentAnalista; await addDoc(collection(db, COLLECTION_NAME), copy); showToast("Duplicado"); } };
+        window.downloadTemplate = () => { const ws = XLSX.utils.json_to_sheet([{"Assistencia":"123","Data":"01/01/2026","Nota":0,"Produto":"HDI","Cidade":"SP","UF":"SP","Prestador":"X","TipoServico":"Encanador"}]); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Modelo"); XLSX.writeFile(wb, "Modelo.xlsx"); };
+        
+        // Audit
+        window.openAuditModal = function() {
+            const m = document.getElementById('auditModal');
+            const b = document.getElementById('auditBody');
+            b.innerHTML = '<tr><td colspan="4" class="p-4 text-center">Carregando...</td></tr>';
+            m.classList.remove('hidden');
+            const q = query(collection(db, COLLECTION_LOGS), orderBy("timestamp", "desc"), limit(50));
+            onSnapshot(q, (s) => {
+                b.innerHTML = s.empty ? '<tr><td colspan="4" class="p-4 text-center">Sem logs.</td></tr>' : '';
+                s.forEach(d => {
+                    const l = d.data();
+                    b.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-3 text-xs text-gray-500">${new Date(l.timestamp).toLocaleString()}</td><td class="p-3 text-xs font-bold">${l.user}</td><td class="p-3 text-xs log-${l.action.split(' ')[0]}">${l.action}</td><td class="p-3 text-xs text-gray-600 truncate max-w-[200px]">${l.details}</td></tr>`;
+                });
+            });
+        };
 
-        // Auto-Start
+        // Auth
+        window.performLogin = function() {
+            const n = document.getElementById('loginName').value;
+            if(!n) return alert("Nome obrigatório");
+            currentAnalista = n;
+            localStorage.setItem('nps_user_name', n);
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('userNameDisplay').textContent = getInitials(n);
+            initAppLogic();
+        };
+        window.logout = () => { if(confirm("Sair?")) { localStorage.removeItem('nps_user_name'); location.reload(); } };
+
         if(currentAnalista) {
             document.getElementById('loginModal').classList.add('hidden');
             document.getElementById('userNameDisplay').textContent = getInitials(currentAnalista);
-            document.getElementById('userNameDisplay').title = currentAnalista;
             initAppLogic();
         }
         
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
-            ['searchInput', 'filterStatus', 'filterDateStart', 'filterDateEnd'].forEach(id => {
-                const el = document.getElementById(id);
-                if(el) el.addEventListener('input', () => { visibleItems = 10; activeChartFilter = null; refreshTable(); });
-            });
+            ['searchInput','filterStatus','filterDateStart','filterDateEnd'].forEach(id=>document.getElementById(id).addEventListener('input',()=>refreshTable()));
         });
     </script>
 </head>
@@ -598,37 +504,118 @@
     <!-- Login Modal -->
     <div id="loginModal" class="fixed inset-0 bg-indigo-900 z-[60] flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center animate-fade-in">
-            <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i data-lucide="lock" class="h-8 w-8 text-indigo-600"></i>
-            </div>
-            <h2 class="text-2xl font-bold text-gray-800 mb-2">Acesso Seguro</h2>
-            <p class="text-gray-500 mb-6 text-sm">Identifique-se para acessar o sistema.</p>
-            <div class="space-y-4 text-left">
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nome</label>
-                    <input type="text" id="loginName" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-indigo-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">PIN (4 Dígitos)</label>
-                    <input type="password" id="loginPin" maxlength="4" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-indigo-500 text-center text-lg tracking-widest">
-                </div>
-                <button onclick="performLogin()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow-lg transition hover:scale-105">Entrar no Sistema</button>
-            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Acesso ao Sistema</h2>
+            <input type="text" id="loginName" placeholder="Seu Nome" class="w-full border p-3 rounded-lg mb-4 text-center">
+            <input type="password" id="loginPin" placeholder="PIN (4 dígitos)" maxlength="4" class="w-full border p-3 rounded-lg mb-4 text-center">
+            <button onclick="performLogin()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg">Entrar</button>
         </div>
     </div>
 
-    <!-- Confirm Modal -->
-    <div id="confirmModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center animate-fade-in">
-            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <i data-lucide="alert-triangle" class="text-red-600 h-6 w-6"></i>
+    <!-- Modals -->
+    <div id="confirmModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4"><div class="bg-white rounded-xl p-6 text-center w-full max-w-sm"><h3 class="font-bold text-lg mb-4">Confirmar?</h3><p id="confirmText" class="mb-6 text-sm text-gray-500"></p><div class="flex gap-2 justify-center"><button onclick="closeModal('confirmModal')" class="px-4 py-2 bg-gray-200 rounded">Cancelar</button><button id="confirmBtnAction" class="px-4 py-2 bg-red-600 text-white rounded">Confirmar</button></div></div></div>
+    <div id="auditModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4"><div class="bg-white rounded-xl w-full max-w-2xl flex flex-col max-h-[80vh]"><div class="p-4 border-b flex justify-between font-bold"><span>Histórico</span><button onclick="closeModal('auditModal')">X</button></div><div class="overflow-auto flex-grow"><table class="w-full"><thead class="bg-gray-50 text-xs text-gray-500"><tr><th class="p-3">Data</th><th class="p-3">Usuário</th><th class="p-3">Ação</th><th class="p-3">Detalhes</th></tr></thead><tbody id="auditBody"></tbody></table></div></div></div>
+    <div id="detailsModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4"><div class="bg-white rounded-xl w-full max-w-2xl flex flex-col max-h-[90vh]"><div class="p-4 border-b flex justify-between font-bold"><span>Detalhes</span><button onclick="closeModal('detailsModal')">X</button></div><div class="p-6 overflow-auto" id="detailsContent"></div></div></div>
+
+    <!-- Form Modal -->
+    <div id="formModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between items-center flex-none">
+                <h3 class="font-bold flex items-center gap-2" id="formModalTitle">Registro</h3>
+                <button onclick="closeModal('formModal')" class="text-indigo-200 hover:text-white"><i data-lucide="x" class="h-6 w-6"></i></button>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 mb-2">Confirmar Exclusão</h3>
-            <p class="text-sm text-gray-500 mb-6" id="confirmText">Tem certeza?</p>
-            <div class="flex gap-3 justify-center">
-                <button onclick="closeModal('confirmModal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition">Cancelar</button>
-                <button id="confirmBtnAction" class="px-4 py-2 bg-red-600 text-white rounded-lg font-medium shadow-md hover:bg-red-700 transition">Sim, Excluir</button>
-            </div>
+            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 overflow-y-auto custom-scroll flex-grow">
+                <input type="hidden" id="firebaseId"><input type="hidden" id="editIndex"><input type="hidden" id="inpProduto">
+                
+                <!-- Product Selection -->
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-gray-700 mb-2 uppercase">Produto (Seguradora)</label>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button type="button" id="btnHDI" onclick="selectProduct('HDI')" class="btn-prod btn-hdi py-3 rounded-lg font-bold bg-green-50 text-green-700 border border-green-200 flex items-center justify-center gap-2">
+                            <i data-lucide="shield" class="w-4 h-4"></i> HDI
+                        </button>
+                        <button type="button" id="btnYelum" onclick="selectProduct('YELUM')" class="btn-prod btn-yelum py-3 rounded-lg font-bold bg-yellow-50 text-yellow-700 border border-yellow-200 flex items-center justify-center gap-2">
+                            <i data-lucide="sun" class="w-4 h-4"></i> YELUM
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">ID Assistência</label>
+                        <input type="number" id="inpAssistencia" required class="w-full border p-2 rounded text-sm bg-gray-50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Data</label>
+                        <input type="text" id="inpData" placeholder="DD/MM/AAAA" class="w-full border p-2 rounded text-sm">
+                    </div>
+                </div>
+                
+                <!-- Location -->
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="col-span-2">
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Cidade</label>
+                        <input type="text" id="inpCidade" class="w-full border p-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">UF</label>
+                        <input type="text" id="inpUF" maxlength="2" placeholder="SP" class="w-full border p-2 rounded text-sm uppercase">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Nota NPS</label>
+                        <input type="number" id="inpNota" required min="0" max="10" class="w-full border p-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Analista</label>
+                        <input type="text" id="inpAnalista" readonly class="w-full border p-2 rounded text-sm bg-gray-100 text-gray-500">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Cód. FA</label>
+                        <input type="text" id="inpFA" class="w-full border p-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Prestador</label>
+                        <input type="text" id="inpPrestador" class="w-full border p-2 rounded text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Tipo de Serviço</label>
+                    <input type="text" id="inpTipoServico" placeholder="Ex: Linha Branca" class="w-full border p-2 rounded text-sm">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Status</label>
+                        <select id="inpStatus" class="w-full border p-2 rounded text-sm bg-white">
+                            <option value="Procedente">Procedente</option>
+                            <option value="Improcedente">Improcedente</option>
+                            <option value="Em Análise">Em Análise</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Motivo</label>
+                        <input type="text" id="inpMotivo" class="w-full border p-2 rounded text-sm">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Comentário Técnico</label>
+                    <textarea id="inpComentario" rows="3" class="w-full border p-2 rounded text-sm resize-none"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Ação na Rede</label>
+                    <input type="text" id="inpAcao" class="w-full border p-2 rounded text-sm">
+                </div>
+                
+                <button type="submit" class="w-full bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 font-bold shadow-md">Salvar Registro</button>
+            </form>
         </div>
     </div>
 
@@ -641,267 +628,60 @@
             <div class="flex items-center space-x-3">
                 <div class="bg-indigo-700 p-2 rounded-lg"><i data-lucide="cloud" class="h-6 w-6 text-green-400"></i></div>
                 <div>
-                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 2.2</h1>
-                    <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online • Firebase</p>
+                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 2.3</h1>
+                    <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
                 </div>
             </div>
             <div class="flex items-center space-x-3">
-                <button onclick="downloadTemplate()" class="hidden md:flex items-center space-x-2 bg-indigo-800 hover:bg-indigo-700 px-3 py-1.5 rounded-lg text-xs transition-colors border border-indigo-700 text-indigo-100">
-                    <i data-lucide="download" class="h-4 w-4"></i>
-                    <span>Modelo</span>
-                </button>
-                <button onclick="exportToExcel()" class="hidden md:flex items-center space-x-2 bg-green-700 hover:bg-green-600 px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm border border-green-600">
-                    <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>
-                    <span>Excel</span>
-                </button>
+                <button onclick="openAuditModal()" class="flex items-center space-x-2 bg-indigo-800 hover:bg-indigo-700 px-3 py-1.5 rounded-lg text-xs border border-indigo-700 text-indigo-100"><i data-lucide="history" class="h-4 w-4"></i>Logs</button>
+                <div class="h-6 w-px bg-indigo-700 mx-1"></div>
+                <button onclick="downloadTemplate()" class="hidden md:flex items-center space-x-2 bg-indigo-800 hover:bg-indigo-700 px-3 py-1.5 rounded-lg text-xs border border-indigo-700 text-indigo-100"><i data-lucide="download" class="h-4 w-4"></i>Modelo</button>
+                <button onclick="exportToExcel()" class="hidden md:flex items-center space-x-2 bg-green-700 hover:bg-green-600 px-3 py-1.5 rounded-lg text-xs shadow-sm border border-green-600"><i data-lucide="file-spreadsheet" class="h-4 w-4"></i>Excel</button>
                 <div class="h-8 w-1 bg-indigo-700 mx-2"></div>
-                <button onclick="logout()" class="flex items-center space-x-2 bg-red-800/80 hover:bg-red-700 px-3 py-1.5 rounded-lg text-xs transition-colors" title="Sair do Sistema">
-                    <i data-lucide="log-out" class="h-4 w-4"></i>
-                    <span>Sair</span>
-                </button>
-                <div id="userNameDisplay" class="h-9 w-9 rounded-full bg-indigo-500 flex items-center justify-center border-2 border-indigo-400 font-bold text-xs cursor-help" title="Usuário Logado">--</div>
+                <button onclick="logout()" class="flex items-center space-x-2 bg-red-800/80 hover:bg-red-700 px-3 py-1.5 rounded-lg text-xs" title="Sair"><i data-lucide="log-out" class="h-4 w-4"></i></button>
+                <div id="userNameDisplay" class="h-9 w-9 rounded-full bg-indigo-500 flex items-center justify-center border-2 border-indigo-400 font-bold text-xs cursor-help">--</div>
             </div>
         </div>
     </nav>
 
     <!-- Content -->
     <main class="container mx-auto px-4 py-6 flex-grow overflow-y-auto custom-scroll">
-        
-        <!-- Toolbar -->
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <i data-lucide="layout-dashboard" class="h-5 w-5 text-indigo-600"></i>
-                Visão Estratégica
-            </h2>
+            <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2"><i data-lucide="layout-dashboard" class="h-5 w-5 text-indigo-600"></i>Visão Estratégica</h2>
             <div class="flex space-x-2 w-full md:w-auto">
                 <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelUpload(event)">
-                
-                <button id="btnDeleteSelected" onclick="confirmBatchDelete()" class="hidden flex items-center bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-bold border border-red-200 transition hover:bg-red-100 hover:shadow-sm">
-                    <i data-lucide="trash-2" class="h-4 w-4 mr-2"></i>
-                    <span id="selectedCountText">Excluir Selecionados</span>
-                </button>
-
-                <button onclick="document.getElementById('excelInput').click()" class="flex items-center bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm">
-                    <i data-lucide="upload-cloud" class="h-4 w-4 mr-2 text-indigo-600"></i>
-                    Importar
-                </button>
-                
-                <button onclick="openFormModal()" class="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md hover:shadow-lg transform active:scale-95">
-                    <i data-lucide="plus-circle" class="h-4 w-4 mr-2"></i>
-                    Novo Registro
-                </button>
+                <button id="btnDeleteSelected" onclick="confirmBatchDelete()" class="hidden flex items-center bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-bold border border-red-200"><i data-lucide="trash-2" class="h-4 w-4 mr-2"></i><span id="selectedCountText">Excluir</span></button>
+                <button onclick="document.getElementById('excelInput').click()" class="flex items-center bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium shadow-sm"><i data-lucide="upload-cloud" class="h-4 w-4 mr-2 text-indigo-600"></i>Importar</button>
+                <button onclick="openFormModal()" class="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-md"><i data-lucide="plus-circle" class="h-4 w-4 mr-2"></i>Novo Registro</button>
             </div>
         </div>
 
-        <!-- KPIs -->
         <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-gray-400 flex flex-col justify-between hover:translate-y-[-2px] transition-transform">
-                <div class="flex justify-between items-start">
-                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Total Analisado</p>
-                    <i data-lucide="file-text" class="h-5 w-5 text-gray-300"></i>
-                </div>
-                <h3 class="text-3xl font-bold mt-2 text-gray-800" id="kpi-total">0</h3>
-            </div>
-            
-            <!-- Novo KPI NPS Score -->
-            <div id="kpi-score-container" class="bg-white p-5 rounded-xl card-shadow border-l-4 border-blue-500 flex flex-col justify-between hover:translate-y-[-2px] transition-transform">
-                <div class="flex justify-between items-start">
-                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">NPS Real</p>
-                    <i data-lucide="activity" class="h-5 w-5 text-blue-300"></i>
-                </div>
-                <h3 class="text-3xl font-bold mt-2 text-blue-600" id="kpi-nps-text"><span id="kpi-nps-score">0</span></h3>
-                <p class="text-[10px] text-gray-400 mt-1">Score da Base Filtrada</p>
-            </div>
-
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500 flex flex-col justify-between hover:translate-y-[-2px] transition-transform">
-                <div class="flex justify-between items-start">
-                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Procedentes</p>
-                    <span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold" id="kpi-procedente-pct">0%</span>
-                </div>
-                <h3 class="text-3xl font-bold mt-2 text-red-600" id="kpi-procedente">0</h3>
-            </div>
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-orange-500 flex flex-col justify-between hover:translate-y-[-2px] transition-transform">
-                <div class="flex justify-between items-start">
-                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Risco Crítico</p>
-                    <i data-lucide="alert-triangle" class="h-5 w-5 text-orange-500 animate-pulse"></i>
-                </div>
-                <h3 class="text-3xl font-bold mt-2 text-orange-600" id="kpi-risco">0</h3>
-            </div>
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-yellow-500 flex flex-col justify-between hover:translate-y-[-2px] transition-transform">
-                <div class="flex justify-between items-start">
-                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Ações na Rede</p>
-                    <i data-lucide="zap" class="h-5 w-5 text-yellow-500"></i>
-                </div>
-                <h3 class="text-3xl font-bold mt-2 text-gray-800" id="kpi-acao-rede">0</h3>
-            </div>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-gray-400 flex flex-col justify-between"><div class="flex justify-between"><p class="text-xs text-gray-500 font-bold uppercase">Total</p><i data-lucide="file-text" class="h-5 w-5 text-gray-300"></i></div><h3 class="text-3xl font-bold mt-2" id="kpi-total">0</h3></div>
+            <div id="kpi-score-container" class="bg-white p-5 rounded-xl card-shadow border-l-4 border-blue-500 flex flex-col justify-between"><div class="flex justify-between"><p class="text-xs text-gray-500 font-bold uppercase">NPS Real</p><i data-lucide="activity" class="h-5 w-5 text-blue-300"></i></div><h3 class="text-3xl font-bold mt-2 text-blue-600" id="kpi-nps-text"><span id="kpi-nps-score">0</span></h3></div>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500 flex flex-col justify-between"><div class="flex justify-between"><p class="text-xs text-gray-500 font-bold uppercase">Procedentes</p><span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded font-bold" id="kpi-procedente-pct">0%</span></div><h3 class="text-3xl font-bold mt-2 text-red-600" id="kpi-procedente">0</h3></div>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-orange-500 flex flex-col justify-between"><div class="flex justify-between"><p class="text-xs text-gray-500 font-bold uppercase">Risco</p><i data-lucide="alert-triangle" class="h-5 w-5 text-orange-500 animate-pulse"></i></div><h3 class="text-3xl font-bold mt-2 text-orange-600" id="kpi-risco">0</h3></div>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-yellow-500 flex flex-col justify-between"><div class="flex justify-between"><p class="text-xs text-gray-500 font-bold uppercase">Ações</p><i data-lucide="zap" class="h-5 w-5 text-yellow-500"></i></div><h3 class="text-3xl font-bold mt-2" id="kpi-acao-rede">0</h3></div>
         </div>
 
-        <!-- Charts -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100">
-                <h3 class="text-sm font-bold uppercase text-gray-500 mb-6 flex justify-between items-center">
-                    <span class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="h-4 w-4"></i> Motivos de Detração</span>
-                    <button onclick="clearChartFilter()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline bg-indigo-50 px-2 py-1 rounded">Limpar Filtro</button>
-                </h3>
-                <div class="chart-container" style="height: 280px;"><canvas id="chartMotivos"></canvas></div>
-            </div>
-            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100">
-                <h3 class="text-sm font-bold uppercase text-gray-500 mb-6 flex items-center gap-2">
-                    <i data-lucide="trending-down" class="h-4 w-4"></i> Top 10 Prestadores (Ofensores)
-                </h3>
-                <div class="chart-container" style="height: 280px;"><canvas id="chartPrestadores"></canvas></div>
-            </div>
+            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6 flex justify-between"><span><i data-lucide="bar-chart-2" class="h-4 w-4 inline mr-2"></i> Motivos</span><button onclick="clearChartFilter()" class="text-xs text-indigo-600 underline">Limpar</button></h3><div class="chart-container" style="height: 280px;"><canvas id="chartMotivos"></canvas></div></div>
+            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6"><i data-lucide="trending-down" class="h-4 w-4 inline mr-2"></i> Top 10 Prestadores</h3><div class="chart-container" style="height: 280px;"><canvas id="chartPrestadores"></canvas></div></div>
         </div>
 
-        <!-- Table -->
         <div class="bg-white rounded-xl card-shadow overflow-hidden mb-8 border border-gray-200">
-            <div class="p-5 border-b border-gray-100 bg-gray-50/50">
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                    <div class="md:col-span-5 relative">
-                        <i data-lucide="search" class="absolute left-3 top-2.5 h-4 w-4 text-gray-400"></i>
-                        <input type="text" id="searchInput" placeholder="Buscar ID, Prestador, Analista..." class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow">
-                    </div>
-                    <div class="md:col-span-3">
-                        <select id="filterStatus" class="w-full py-2 px-3 rounded-lg border border-gray-300 text-sm text-gray-600 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                            <option value="">Todos Status</option>
-                            <option value="Procedente">Procedente</option>
-                            <option value="Improcedente">Improcedente</option>
-                            <option value="RISCO">⚠️ Risco Crítico</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-4 flex gap-2">
-                        <input type="date" id="filterDateStart" class="w-full text-sm border border-gray-300 p-2 rounded-lg text-gray-500 focus:ring-2 focus:ring-indigo-500 outline-none">
-                        <input type="date" id="filterDateEnd" class="w-full text-sm border border-gray-300 p-2 rounded-lg text-gray-500 focus:ring-2 focus:ring-indigo-500 outline-none">
-                    </div>
-                </div>
-            </div>
-
+            <div class="p-5 border-b border-gray-100 bg-gray-50"><div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center"><div class="md:col-span-5 relative"><i data-lucide="search" class="absolute left-3 top-2.5 h-4 w-4 text-gray-400"></i><input type="text" id="searchInput" placeholder="Buscar..." class="w-full pl-10 pr-4 py-2 rounded-lg border text-sm"></div><div class="md:col-span-3"><select id="filterStatus" class="w-full py-2 px-3 rounded-lg border text-sm"><option value="">Todos Status</option><option value="Procedente">Procedente</option><option value="RISCO">⚠️ Risco</option></select></div><div class="md:col-span-4 flex gap-2"><input type="date" id="filterDateStart" class="w-full text-sm border p-2 rounded-lg"><input type="date" id="filterDateEnd" class="w-full text-sm border p-2 rounded-lg"></div></div></div>
             <div class="overflow-x-auto custom-scroll relative min-h-[300px]">
-                <div id="loadingIndicator" class="absolute inset-0 bg-white/90 z-20 flex flex-col items-center justify-center font-bold text-gray-500">
-                    <i data-lucide="loader-2" class="animate-spin h-8 w-8 mb-2 text-indigo-600"></i> 
-                    <span>Sincronizando com a Nuvem...</span>
-                </div>
-
+                <div id="loadingIndicator" class="absolute inset-0 bg-white/90 z-20 flex flex-col items-center justify-center font-bold text-gray-500"><i data-lucide="loader-2" class="animate-spin h-8 w-8 mb-2 text-indigo-600"></i><span>Sincronizando...</span></div>
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold tracking-wider sticky top-0 z-10 shadow-sm">
-                        <tr>
-                            <th class="p-4 w-10 text-center bg-gray-100"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th>
-                            <th class="p-4 bg-gray-100 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('assistencia')">ID <i data-lucide="arrow-up-down" class="sort-icon w-3 h-3 inline"></i></th>
-                            <th class="p-4 bg-gray-100 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('data')">Data <i data-lucide="arrow-up-down" class="sort-icon w-3 h-3 inline"></i></th>
-                            <th class="p-4 bg-gray-100 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('nota')">Nota <i data-lucide="arrow-up-down" class="sort-icon w-3 h-3 inline"></i></th>
-                            <th class="p-4 bg-gray-100">Analista</th>
-                            <th class="p-4 bg-gray-100">FA / Prestador</th>
-                            <th class="p-4 bg-gray-100">Serviço</th>
-                            <th class="p-4 bg-gray-100 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('status')">Status <i data-lucide="arrow-up-down" class="sort-icon w-3 h-3 inline"></i></th>
-                            <th class="p-4 text-right bg-gray-100">Ações</th>
-                        </tr>
+                    <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold sticky top-0 z-10 shadow-sm">
+                        <tr><th class="p-4 w-10 text-center"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('assistencia')">ID <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('data')">Data <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4">Nota</th><th class="p-4">Local</th><th class="p-4">FA / Prestador</th><th class="p-4">Serviço</th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('status')">Status <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4 text-right">Ações</th></tr>
                     </thead>
                     <tbody id="tableBody" class="text-sm divide-y divide-gray-100 bg-white"></tbody>
                 </table>
             </div>
-            <div class="p-4 border-t border-gray-100 text-center bg-gray-50/50 flex flex-col items-center">
-                <p class="text-xs text-gray-500 mb-2 font-medium" id="showingCount">Carregando dados...</p>
-                <button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hidden px-6 py-2 hover:bg-indigo-50 rounded-full transition border border-indigo-200 bg-white shadow-sm">
-                    Carregar Mais
-                </button>
-            </div>
+            <div class="p-4 border-t border-gray-100 text-center bg-gray-50 flex flex-col items-center"><p class="text-xs text-gray-500 mb-2 font-medium" id="showingCount">Carregando...</p><button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hidden px-6 py-2 border rounded-full bg-white shadow-sm">Carregar Mais</button></div>
         </div>
     </main>
-
-    <!-- Modals (Hidden by default) -->
-    <div id="detailsModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
-            <div class="px-6 py-4 bg-indigo-50 border-b flex justify-between items-center flex-none">
-                <h3 class="font-bold text-indigo-900 flex items-center gap-2"><i data-lucide="file-search" class="h-5 w-5"></i> Detalhes da Assistência</h3>
-                <button onclick="closeModal('detailsModal')" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="h-6 w-6"></i></button>
-            </div>
-            <div class="p-6 overflow-y-auto custom-scroll flex-grow" id="detailsContent"></div>
-            <div class="px-6 py-4 bg-gray-50 border-t flex justify-end flex-none">
-                <button onclick="closeModal('detailsModal')" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 shadow-sm transition">Fechar Visualização</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="formModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
-            <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between items-center flex-none">
-                <h3 class="font-bold flex items-center gap-2" id="formModalTitle"><i data-lucide="edit" class="h-4 w-4"></i> Registro</h3>
-                <button onclick="closeModal('formModal')" class="text-indigo-200 hover:text-white"><i data-lucide="x" class="h-6 w-6"></i></button>
-            </div>
-            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 overflow-y-auto custom-scroll flex-grow">
-                <input type="hidden" id="firebaseId"><input type="hidden" id="editIndex">
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">ID Assistência</label>
-                        <input type="number" id="inpAssistencia" required class="w-full border border-gray-300 p-2 rounded-lg text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Data</label>
-                        <input type="text" id="inpData" placeholder="DD/MM/AAAA" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                    </div>
-                </div>
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Nota NPS</label>
-                        <input type="number" id="inpNota" required min="0" max="10" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Analista</label>
-                        <input type="text" id="inpAnalista" readonly class="w-full border border-gray-300 p-2 rounded-lg text-sm bg-gray-100 text-gray-500 cursor-not-allowed">
-                    </div>
-                </div>
-                
-                <!-- Swapped Order: FA then Prestador -->
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Cód. FA</label>
-                        <input type="text" id="inpFA" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Prestador</label>
-                        <input type="text" id="inpPrestador" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                    </div>
-                </div>
-
-                <!-- NEW: Tipo de Serviço -->
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Tipo de Serviço</label>
-                    <input type="text" id="inpTipoServico" placeholder="Ex: Linha Branca, Encanador" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                </div>
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Status</label>
-                        <select id="inpStatus" class="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                            <option value="Procedente">Procedente</option>
-                            <option value="Improcedente">Improcedente</option>
-                            <option value="Em Análise">Em Análise</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Motivo</label>
-                        <input type="text" id="inpMotivo" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                    </div>
-                </div>
-                
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Comentário Técnico</label>
-                    <textarea id="inpComentario" rows="4" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none"></textarea>
-                </div>
-                
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Ação na Rede</label>
-                    <input type="text" id="inpAcao" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                </div>
-                
-                <button type="submit" class="w-full bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 font-bold shadow-md transition transform hover:scale-[1.02] flex justify-center items-center gap-2">
-                    <i data-lucide="save" class="h-4 w-4"></i> Salvar Registro
-                </button>
-            </form>
-        </div>
-    </div>
-
 </body>
 </html>
