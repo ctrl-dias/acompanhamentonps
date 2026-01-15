@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 2.4 - Design Moderno</title>
+    <title>Dashboard NPS 2.5 - Análise de Ofensores</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -275,11 +275,19 @@
             lucide.createIcons();
         }
 
-        // --- Gráficos ---
+        // --- Gráficos (Bases Ofensoras - Procedentes) ---
         function refreshCharts() {
             const m = {}; const p = {};
+            
+            // Motivos (Geral)
             npsData.forEach(d => { 
                 m[d.motivo||'Outros'] = (m[d.motivo||'Outros']||0)+1;
+            });
+
+            // Bases Ofensoras (Apenas Status Procedente)
+            const procedentes = npsData.filter(d => d.status === 'Procedente');
+            
+            procedentes.forEach(d => {
                 const prest = d.prestador || 'Desconhecido';
                 p[prest] = (p[prest]||0)+1; 
             });
@@ -287,15 +295,17 @@
             const topP = Object.entries(p).sort((a,b) => b[1] - a[1]).slice(0, 10);
             
             drawChart('chartMotivos', 'bar', Object.keys(m), Object.values(m), (i)=> { activeChartFilter={type:'motivo',value:Object.keys(m)[i]}; refreshTable(); });
-            drawChart('chartPrestadores', 'bar', topP.map(e => e[0]), topP.map(e => e[1]), (i)=> { activeChartFilter={type:'prestador',value:topP[i][0]}; refreshTable(); }, true);
+            
+            // Gráfico de Bases Ofensoras em Vermelho
+            drawChart('chartPrestadores', 'bar', topP.map(e => e[0]), topP.map(e => e[1]), (i)=> { activeChartFilter={type:'prestador',value:topP[i][0]}; refreshTable(); }, true, '#ef4444');
         }
 
-        function drawChart(id, t, l, d, cb, horiz = false) {
+        function drawChart(id, t, l, d, cb, horiz = false, color = '#6366f1') {
             const cvs = document.getElementById(id); if(!cvs) return;
             if(chartInstances[id]) chartInstances[id].destroy();
             chartInstances[id] = new Chart(cvs, {
-                type: t, data:{labels:l,datasets:[{label:'Qtd',data:d,backgroundColor:'#6366f1',borderRadius:4,barPercentage:0.6}]}, 
-                options:{indexAxis: horiz?'y':'x', maintainAspectRatio:false, plugins:{legend:{display:false}}, onClick:(e,el)=>{if(cb&&el.length)cb(el[0].index)}, scales:{x:{grid:{display:false},beginAtZero:true},y:{beginAtZero:true,grid:{borderDash:[2,4]}}}}
+                type: t, data:{labels:l,datasets:[{label:'Qtd',data:d,backgroundColor:color,borderRadius:4,barPercentage:0.6}]}, 
+                options:{indexAxis: horiz?'y':'x', maintainAspectRatio:false, responsive: true, plugins:{legend:{display:false}}, onClick:(e,el)=>{if(cb&&el.length)cb(el[0].index)}, scales:{x:{grid:{display:false},beginAtZero:true},y:{beginAtZero:true,grid:{borderDash:[2,4]}}}}
             });
         }
 
@@ -358,9 +368,9 @@
                 data: document.getElementById('inpData').value,
                 nota: parseInt(document.getElementById('inpNota').value),
                 analista: document.getElementById('inpAnalista').value || currentAnalista,
-                produto: document.getElementById('inpProduto').value, // NEW
-                cidade: document.getElementById('inpCidade').value, // NEW
-                uf: document.getElementById('inpUF').value, // NEW
+                produto: document.getElementById('inpProduto').value, 
+                cidade: document.getElementById('inpCidade').value, 
+                uf: document.getElementById('inpUF').value, 
                 prestador: document.getElementById('inpPrestador').value,
                 fa: document.getElementById('inpFA').value,
                 tipoServico: document.getElementById('inpTipoServico').value,
@@ -663,8 +673,8 @@
             <div class="flex items-center space-x-3">
                 <div class="bg-indigo-700 p-2 rounded-lg"><i data-lucide="cloud" class="h-6 w-6 text-green-400"></i></div>
                 <div>
-                    <h1 class="text-lg font-bold tracking-wide">NPS - Acompanhamento </h1>
-                    <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online - v1.0</p>
+                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 2.3</h1>
+                    <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
                 </div>
             </div>
             <div class="flex items-center space-x-3">
@@ -701,7 +711,7 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6 flex justify-between"><span><i data-lucide="bar-chart-2" class="h-4 w-4 inline mr-2"></i> Motivos</span><button onclick="clearChartFilter()" class="text-xs text-indigo-600 underline">Limpar</button></h3><div class="chart-container" style="height: 280px;"><canvas id="chartMotivos"></canvas></div></div>
-            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6"><i data-lucide="trending-down" class="h-4 w-4 inline mr-2"></i> Top 10 Prestadores</h3><div class="chart-container" style="height: 280px;"><canvas id="chartPrestadores"></canvas></div></div>
+            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6"><i data-lucide="alert-triangle" class="h-4 w-4 inline mr-2"></i> Bases Ofensoras (Procedentes)</h3><div class="chart-container" style="height: 280px;"><canvas id="chartPrestadores"></canvas></div></div>
         </div>
 
         <div class="bg-white rounded-xl card-shadow overflow-hidden mb-8 border border-gray-200">
