@@ -14,7 +14,7 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- SheetJS (Excel Import) -->
+    <!-- SheetJS (Excel Import/Export) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
     <!-- Google Fonts -->
@@ -63,9 +63,9 @@
                     <i data-lucide="rotate-ccw" class="h-4 w-4"></i>
                     <span>Resetar</span>
                 </button>
-                <button onclick="exportToCSV()" class="hidden md:flex items-center space-x-2 bg-indigo-800 hover:bg-indigo-700 px-3 py-1.5 rounded-lg text-xs transition-colors">
-                    <i data-lucide="download" class="h-4 w-4"></i>
-                    <span>Exportar CSV</span>
+                <button onclick="exportToExcel()" class="hidden md:flex items-center space-x-2 bg-green-700 hover:bg-green-600 px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm border border-green-600">
+                    <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>
+                    <span>Baixar Excel</span>
                 </button>
                 <div class="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center border-2 border-indigo-400">
                     <span class="font-bold text-xs">AD</span>
@@ -96,7 +96,7 @@
         </div>
 
         <!-- KPIs -->
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-gray-400">
                 <p class="text-xs text-gray-500 font-bold uppercase">Total Analisado</p>
                 <div class="flex justify-between items-end mt-2">
@@ -105,15 +105,6 @@
                 </div>
             </div>
             
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-indigo-500">
-                 <p class="text-xs text-gray-500 font-bold uppercase">Score NPS (Base)</p>
-                 <div class="flex justify-between items-end mt-2">
-                     <h3 class="text-2xl font-bold text-indigo-700" id="kpi-score">0</h3>
-                     <i data-lucide="activity" class="h-5 w-5 text-indigo-300"></i>
-                 </div>
-                 <p class="text-[10px] text-gray-400 mt-1">Fórmula: %Prom - %Det</p>
-            </div>
-
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500">
                 <p class="text-xs text-gray-500 font-bold uppercase">Procedentes</p>
                 <div class="flex justify-between items-end mt-2">
@@ -202,7 +193,7 @@
                             <th class="p-4 border-b">Data</th>
                             <th class="p-4 border-b">Nota</th>
                             <th class="p-4 border-b">Analista</th>
-                            <th class="p-4 border-b">Prestador</th>
+                            <th class="p-4 border-b">FA / Prestador</th>
                             <th class="p-4 border-b">Status</th>
                             <th class="p-4 border-b text-right">Ações</th>
                         </tr>
@@ -275,9 +266,15 @@
                     </div>
                 </div>
 
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Prestador</label>
-                    <input type="text" id="inpPrestador" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="col-span-1">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Cód. FA</label>
+                        <input type="text" id="inpFA" placeholder="FA..." class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Prestador</label>
+                        <input type="text" id="inpPrestador" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -315,14 +312,14 @@
 
     <!-- Scripts -->
     <script>
-        // Default Data (used if LocalStorage is empty)
+        // Default Data (updated with FA codes)
         const defaultData = [
-            { assistencia: "9152596", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "PR", cidade: "Curitiba", prestador: "GPRAG CONTROLE", motivo: "Visita não realizada", analista: "Rebecca", status: "Procedente", comentario: "Prestador não compareceu.", acaoRede: "Desligamento" },
-            { assistencia: "9098378", data: "02/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "PR", cidade: "Curitiba", prestador: "TOP SERVICE", motivo: "Danos", analista: "Jonathan", status: "Improcedente", comentario: "TV já estava danificada.", acaoRede: "Nenhuma" },
-            { assistencia: "9167619", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "HDI", uf: "MG", cidade: "BH", prestador: "HMS ASSISTENCIA", motivo: "Cobertura", analista: "Rebecca", status: "Procedente", comentario: "Erro de cobertura.", acaoRede: "Nenhuma" },
-            { assistencia: "9145640", data: "06/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "RJ", cidade: "Rio", prestador: "MARANATA", motivo: "Falha operacional", analista: "Rebecca", status: "Procedente", comentario: "Falha operacional grave.", acaoRede: "Nenhuma" },
-            { assistencia: "9178103", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "SP", cidade: "SJC", prestador: "CASA DA CHAVE", motivo: "Não houve falha", analista: "Rebecca", status: "Improcedente", comentario: "Cliente reclamou da assistência errada.", acaoRede: "Nenhuma" },
-            { assistencia: "9188888", data: "09/01/2026", nota: 1, categoria: "Detrator", cliente: "ALLIANZ", uf: "SP", cidade: "São Paulo", prestador: "GUINCHO RÁPIDO", motivo: "Atraso", analista: "Marcos", status: "Procedente", comentario: "Demora de 120 min.", acaoRede: "Advertência" }
+            { assistencia: "9152596", fa: "FA10526", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "PR", cidade: "Curitiba", prestador: "GPRAG CONTROLE", motivo: "Visita não realizada", analista: "Rebecca", status: "Procedente", comentario: "Prestador não compareceu.", acaoRede: "Desligamento" },
+            { assistencia: "9098378", fa: "FA13308", data: "02/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "PR", cidade: "Curitiba", prestador: "TOP SERVICE", motivo: "Danos", analista: "Jonathan", status: "Improcedente", comentario: "TV já estava danificada.", acaoRede: "Nenhuma" },
+            { assistencia: "9167619", fa: "FA7287", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "HDI", uf: "MG", cidade: "BH", prestador: "HMS ASSISTENCIA", motivo: "Cobertura", analista: "Rebecca", status: "Procedente", comentario: "Erro de cobertura.", acaoRede: "Nenhuma" },
+            { assistencia: "9145640", fa: "FA13021", data: "06/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "RJ", cidade: "Rio", prestador: "MARANATA", motivo: "Falha operacional", analista: "Rebecca", status: "Procedente", comentario: "Falha operacional grave.", acaoRede: "Nenhuma" },
+            { assistencia: "9178103", fa: "FA9068", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "SP", cidade: "SJC", prestador: "CASA DA CHAVE", motivo: "Não houve falha", analista: "Rebecca", status: "Improcedente", comentario: "Cliente reclamou da assistência errada.", acaoRede: "Nenhuma" },
+            { assistencia: "9188888", fa: "FA0000", data: "09/01/2026", nota: 1, categoria: "Detrator", cliente: "ALLIANZ", uf: "SP", cidade: "São Paulo", prestador: "GUINCHO RÁPIDO", motivo: "Atraso", analista: "Marcos", status: "Procedente", comentario: "Demora de 120 min.", acaoRede: "Advertência" }
         ];
 
         let npsData = [];
@@ -381,26 +378,16 @@
         }
 
         function refreshKPIs() {
-            // Apply current filters to KPIs as well? Usually KPIs show global, but let's show global for now
-            // Or filtered? Let's show Global for KPIs to give "Big Picture"
-            // To make it dynamic based on filter, use filterData() result.
-            // Let's use Global for KPIs except table.
             
             const total = npsData.length;
             const procedente = npsData.filter(d => d.status.toLowerCase() === 'procedente').length;
             const improcedente = npsData.filter(d => d.status.toLowerCase() === 'improcedente').length;
             const acaoRede = npsData.filter(d => (d.acaoRede || '').toLowerCase().includes('desligamento') || (d.acaoRede || '').toLowerCase().includes('advertência')).length;
 
-            // NPS Score Calculation: ((Promoters - Detractors) / Total) * 100
-            const promoters = npsData.filter(d => d.nota >= 9).length;
-            const detractors = npsData.filter(d => d.nota <= 6).length;
-            const npsScore = total > 0 ? ((promoters - detractors) / total) * 100 : 0;
-
             updateNumber('kpi-total', total);
             updateNumber('kpi-procedente', procedente);
             updateNumber('kpi-improcedente', improcedente);
             updateNumber('kpi-acao-rede', acaoRede);
-            updateNumber('kpi-score', Math.round(npsScore));
 
             document.getElementById('kpi-procedente-pct').textContent = total ? Math.round((procedente/total)*100) + '%' : '0%';
             document.getElementById('kpi-improcedente-pct').textContent = total ? Math.round((improcedente/total)*100) + '%' : '0%';
@@ -426,7 +413,8 @@
                 // Text Search
                 const matchesText = String(item.assistencia).includes(term) || 
                                     (item.analista || '').toLowerCase().includes(term) ||
-                                    (item.prestador || '').toLowerCase().includes(term);
+                                    (item.prestador || '').toLowerCase().includes(term) ||
+                                    (item.fa || '').toLowerCase().includes(term);
 
                 // Status Filter
                 const matchesStatus = statusFilter === "" || item.status === statusFilter;
@@ -453,7 +441,6 @@
             const toShow = filtered.slice(0, visibleItems);
 
             toShow.forEach((row) => {
-                // Determine actual index in main array for edit/delete logic
                 const realIndex = npsData.indexOf(row);
                 
                 const tr = document.createElement('tr');
@@ -462,6 +449,9 @@
                 let statusBadge = "bg-gray-100 text-gray-800";
                 if(row.status === 'Procedente') statusBadge = "bg-red-100 text-red-800 border border-red-200";
                 if(row.status === 'Improcedente') statusBadge = "bg-green-100 text-green-800 border border-green-200";
+
+                // Format FA
+                const faDisplay = row.fa ? `<span class="font-mono font-bold text-indigo-700 mr-1 bg-indigo-50 px-1 rounded border border-indigo-100">${row.fa}</span>` : '';
 
                 tr.innerHTML = `
                     <td class="p-4 font-bold text-indigo-900">#${row.assistencia}</td>
@@ -472,7 +462,10 @@
                         </span>
                     </td>
                     <td class="p-4 text-gray-700">${row.analista}</td>
-                    <td class="p-4 text-gray-600 text-xs truncate max-w-[150px]" title="${row.prestador}">${row.prestador}</td>
+                    <td class="p-4 text-gray-600 text-xs truncate max-w-[250px]" title="${row.fa || ''} ${row.prestador}">
+                        ${faDisplay}
+                        ${row.prestador}
+                    </td>
                     <td class="p-4">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadge}">
                             ${row.status}
@@ -601,6 +594,7 @@
                 document.getElementById('inpNota').value = item.nota;
                 document.getElementById('inpAnalista').value = item.analista;
                 document.getElementById('inpPrestador').value = item.prestador;
+                document.getElementById('inpFA').value = item.fa || '';
                 document.getElementById('inpStatus').value = item.status;
                 document.getElementById('inpMotivo').value = item.motivo;
                 document.getElementById('inpComentario').value = item.comentario;
@@ -625,6 +619,7 @@
                 categoria: nota <= 6 ? 'Detrator' : (nota >= 9 ? 'Promotor' : 'Neutro'),
                 analista: document.getElementById('inpAnalista').value,
                 prestador: document.getElementById('inpPrestador').value,
+                fa: document.getElementById('inpFA').value,
                 status: document.getElementById('inpStatus').value,
                 motivo: document.getElementById('inpMotivo').value,
                 comentario: document.getElementById('inpComentario').value,
@@ -653,7 +648,6 @@
         }
 
         function deleteRecord(index) {
-            // Using custom confirmation could be next step, keeping confirm() for simplicity but saving state
             if(confirm('Tem certeza que deseja excluir este registro?')) {
                 npsData.splice(index, 1);
                 saveData();
@@ -729,6 +723,7 @@
                         nota: row['Nota'] || row['NPS'] || 0,
                         analista: row['Analista'] || "Importado",
                         prestador: row['Prestador'] || row['Nome Fantasia'] || "Desconhecido",
+                        fa: row['FA'] || row['CodPrestador'] || row['Codigo'] || "",
                         status: row['Status'] || "Em Análise",
                         motivo: row['Motivo'] || "Não classificado",
                         comentario: row['Comentário'] || row['Obs'] || "",
@@ -747,35 +742,44 @@
             e.target.value = '';
         }
 
-        // --- Export CSV ---
-        function exportToCSV() {
-            const headers = ["Assistencia", "Data", "Nota", "Analista", "Prestador", "Motivo", "Status", "Comentario"];
-            const csvRows = [];
-            csvRows.push(headers.join(','));
+        // --- Export Excel ---
+        function exportToExcel() {
+            const friendlyData = npsData.map(row => ({
+                "ID Assistência": row.assistencia,
+                "Data Evento": row.data,
+                "Nota NPS": row.nota,
+                "Categoria": row.categoria || (row.nota <=6 ? 'Detrator' : 'Promotor'),
+                "Analista": row.analista,
+                "Cód. FA": row.fa,
+                "Prestador": row.prestador,
+                "Status Tratativa": row.status,
+                "Motivo Detração": row.motivo,
+                "Ação na Rede": row.acaoRede,
+                "Comentário Técnico": row.comentario
+            }));
 
-            npsData.forEach(row => {
-                const values = [
-                    row.assistencia,
-                    row.data,
-                    row.nota,
-                    `"${row.analista}"`, 
-                    `"${row.prestador}"`,
-                    `"${row.motivo}"`,
-                    row.status,
-                    `"${(row.comentario || '').replace(/"/g, '""')}"`
-                ];
-                csvRows.push(values.join(','));
-            });
+            const ws = XLSX.utils.json_to_sheet(friendlyData);
 
-            const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "nps_data_export.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            showToast("Download do CSV iniciado", "info");
+            const wscols = [
+                {wch: 15}, // ID
+                {wch: 12}, // Data
+                {wch: 8},  // Nota
+                {wch: 12}, // Categoria
+                {wch: 20}, // Analista
+                {wch: 12}, // FA
+                {wch: 30}, // Prestador
+                {wch: 15}, // Status
+                {wch: 25}, // Motivo
+                {wch: 15}, // Ação
+                {wch: 50}  // Comentário
+            ];
+            ws['!cols'] = wscols;
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Base NPS");
+
+            XLSX.writeFile(wb, "Base_NPS_Tratada.xlsx");
+            showToast("Download da planilha iniciado!", "success");
         }
 
         window.onclick = function(event) {
