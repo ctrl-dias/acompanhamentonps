@@ -179,7 +179,6 @@
             }
             applySorting();
             refreshTable();
-            // Atualiza ícones visuais (opcional, pode ser feito via CSS classes)
         };
 
         // --- Lógica de UI (Dashboard) ---
@@ -237,7 +236,8 @@
                 const textMatch = String(i.assistencia).includes(term) || 
                                   (i.prestador||'').toLowerCase().includes(term) ||
                                   (i.analista||'').toLowerCase().includes(term) ||
-                                  (i.fa||'').toLowerCase().includes(term);
+                                  (i.fa||'').toLowerCase().includes(term) ||
+                                  (i.tipoServico||'').toLowerCase().includes(term);
                 
                 let statusMatch = true;
                 if(status === 'RISCO') statusMatch = checkRisk(i.comentario);
@@ -296,6 +296,7 @@
                     <td class="p-4 text-gray-600 text-xs max-w-[200px] truncate" title="${row.fa || ''} ${row.prestador}">
                         ${row.fa ? `<span class="font-bold text-indigo-700 bg-indigo-50 px-1 rounded mr-1">${row.fa}</span>` : ''} ${row.prestador}
                     </td>
+                    <td class="p-4 text-gray-600 text-xs">${row.tipoServico || '-'}</td>
                     <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-medium border ${statusClass}">${row.status}</span></td>
                     <td class="p-4 text-right">
                         <div class="flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
@@ -393,7 +394,8 @@
             if(!npsData.length) { showToast("Não há dados para exportar.", "warning"); return; }
             const ws = XLSX.utils.json_to_sheet(npsData.map(d => ({
                 "ID": d.assistencia, "Data": d.data, "Nota": d.nota, "Analista": d.analista,
-                "FA": d.fa, "Prestador": d.prestador, "Status": d.status, "Motivo": d.motivo,
+                "FA": d.fa, "Prestador": d.prestador, "Tipo Serviço": d.tipoServico, 
+                "Status": d.status, "Motivo": d.motivo,
                 "Ação": d.acaoRede, "Comentário": d.comentario, "Risco": checkRisk(d.comentario) ? "SIM" : "NÃO"
             })));
             const wb = XLSX.utils.book_new();
@@ -404,7 +406,7 @@
 
         window.downloadTemplate = function() {
             const ws = XLSX.utils.json_to_sheet([
-                { "Assistencia": "123456", "Data": "01/01/2026", "Nota": 0, "Analista": "Nome", "Prestador": "Empresa X", "FA": "FA1234", "Status": "Procedente", "Motivo": "Atraso", "Ação Rede": "Advertência", "Comentário": "Cliente reclamou de..." }
+                { "Assistencia": "123456", "Data": "01/01/2026", "Nota": 0, "Analista": "Nome", "Prestador": "Empresa X", "FA": "FA1234", "Tipo Servico": "Linha Branca", "Status": "Procedente", "Motivo": "Atraso", "Ação Rede": "Advertência", "Comentário": "Cliente reclamou de..." }
             ]);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Modelo");
@@ -447,6 +449,7 @@
                     document.getElementById('inpNota').value = i.nota;
                     document.getElementById('inpPrestador').value = i.prestador;
                     document.getElementById('inpFA').value = i.fa || '';
+                    document.getElementById('inpTipoServico').value = i.tipoServico || '';
                     document.getElementById('inpStatus').value = i.status;
                     document.getElementById('inpMotivo').value = i.motivo;
                     document.getElementById('inpComentario').value = i.comentario;
@@ -470,6 +473,7 @@
                 analista: document.getElementById('inpAnalista').value || currentAnalista,
                 prestador: document.getElementById('inpPrestador').value,
                 fa: document.getElementById('inpFA').value,
+                tipoServico: document.getElementById('inpTipoServico').value,
                 status: document.getElementById('inpStatus').value,
                 motivo: document.getElementById('inpMotivo').value,
                 comentario: document.getElementById('inpComentario').value,
@@ -528,6 +532,7 @@
                             comentario: r.Comentario || r.Obs || "",
                             analista: currentAnalista,
                             prestador: r.Prestador || r.prestador || "",
+                            tipoServico: r.TipoServico || r.Servico || r.Tipo || "",
                             motivo: r.Motivo || r.motivo || "",
                             fa: r.FA || r.fa || "",
                             acaoRede: r.Acao || r.acao || "",
@@ -551,6 +556,7 @@
                     <div><p class="text-xs text-gray-500 font-bold uppercase">Assistência</p><p class="text-lg font-medium">${i.assistencia}</p></div>
                     <div><p class="text-xs text-gray-500 font-bold uppercase">Analista</p><p>${i.analista}</p></div>
                     <div><p class="text-xs text-gray-500 font-bold uppercase">Prestador</p><p>${i.prestador}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold uppercase">Serviço</p><p>${i.tipoServico || '-'}</p></div>
                     <div><p class="text-xs text-gray-500 font-bold uppercase">Motivo</p><p>${i.motivo}</p></div>
                     <div><p class="text-xs text-gray-500 font-bold uppercase">Data</p><p>${i.data}</p></div>
                     <div><p class="text-xs text-gray-500 font-bold uppercase">FA</p><p>${i.fa || '-'}</p></div>
@@ -785,6 +791,7 @@
                             <th class="p-4 bg-gray-100 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('nota')">Nota <i data-lucide="arrow-up-down" class="sort-icon w-3 h-3 inline"></i></th>
                             <th class="p-4 bg-gray-100">Analista</th>
                             <th class="p-4 bg-gray-100">FA / Prestador</th>
+                            <th class="p-4 bg-gray-100">Serviço</th>
                             <th class="p-4 bg-gray-100 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('status')">Status <i data-lucide="arrow-up-down" class="sort-icon w-3 h-3 inline"></i></th>
                             <th class="p-4 text-right bg-gray-100">Ações</th>
                         </tr>
@@ -856,6 +863,12 @@
                         <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Prestador</label>
                         <input type="text" id="inpPrestador" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                     </div>
+                </div>
+
+                <!-- NEW: Tipo de Serviço -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Tipo de Serviço</label>
+                    <input type="text" id="inpTipoServico" placeholder="Ex: Linha Branca, Encanador" class="w-full border border-gray-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                 </div>
                 
                 <div class="grid grid-cols-2 gap-4">
