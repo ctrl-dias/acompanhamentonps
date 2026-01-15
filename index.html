@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 2.0 - Firebase</title>
+    <title>Dashboard NPS 2.1 - Conexão Robusta</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -17,120 +17,68 @@
     <!-- SheetJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <!-- Firebase SDKs (Modular) -->
+    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// --- SUA CONFIGURAÇÃO DO FIREBASE ---
-// Cole aqui o que você copiou do console do Firebase
-const firebaseConfig = {
-  apiKey: "AIzaSyCItfDagWuxFQnx036b7gIovTXABhbFmZQ",
-  authDomain: "comunidade-ferramentas.firebaseapp.com",
-  projectId: "comunidade-ferramentas",
-  storageBucket: "comunidade-ferramentas.firebasestorage.app",
-  messagingSenderId: "544906177736",
-  appId: "1:544906177736:web:332554f4c76d9bd65549fd",
-};
+        // =================================================================
+        // ÁREA DE CONFIGURAÇÃO - COLE SEUS DADOS AQUI
+        // =================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCItfDagWuxFQnx036b7gIovTXABhbFmZQ",
+            authDomain: "comunidade-ferramentas.firebaseapp.com",
+            projectId: "comunidade-ferramentas",
+            storageBucket: "comunidade-ferramentas.firebasestorage.app",
+            messagingSenderId: "544906177736",
+            appId: "1:544906177736:web:332554f4c76d9bd65549fd",
+            measurementId: "G-WD4RY0531H"
+        };
+        // =================================================================
 
-// Inicialização
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+        // Inicialização
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            console.log("Firebase inicializado.");
+        } catch (e) {
+            alert("Erro ao iniciar Firebase. Verifique se colou a configuração correta no código.");
+            console.error(e);
+        }
 
-// Defina um nome único para o seu app (para separar dados se tiver múltiplos dashboards)
-const appId = 'dashboard-nps-v1';        
-        
-        // Variáveis Globais de Estado
+        // Variáveis Globais
         let npsData = []; 
         let currentAnalista = localStorage.getItem('nps_user_name') || "";
         let selectedIds = new Set();
+        const COLLECTION_NAME = "nps_records"; // Nome simples da coleção na raiz
 
         // --- Autenticação ---
         async function initAuth() {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // Tenta logar anonimamente para ter permissão de acesso
+                await signInAnonymously(auth);
+                console.log("Autenticado anonimamente no Firebase.");
             } catch (error) {
-                console.error("Erro auth:", error);
+                console.error("Erro na autenticação:", error);
+                showErrorBanner(`Erro de Autenticação: ${error.message}`);
             }
         }
         
-        // --- Expor funções para o escopo global (window) ---
-        // Isso é necessário porque estamos dentro de um module script
-        
-        window.appState = {
-            db, auth, appId, collection
-        };
-
-        // Função de Login Lógico (UI)
-        window.performLogin = function() {
-            const name = document.getElementById('loginName').value.trim();
-            const pin = document.getElementById('loginPin').value.trim();
-            
-            if(!name || pin.length !== 4) {
-                alert("Por favor, insira um nome e um PIN de 4 dígitos.");
-                return;
-            }
-
-            // Salva sessão localmente
-            currentAnalista = name;
-            localStorage.setItem('nps_user_name', name);
-            
-            // UI Update
-            document.getElementById('loginModal').classList.add('hidden');
-            document.getElementById('userNameDisplay').textContent = getInitials(name);
-            document.getElementById('userNameDisplay').title = name;
-            
-            showToast(`Bem-vindo, ${name}! Conectado ao Firebase.`, 'success');
-            
-            // Inicia Listener de Dados APÓS login visual e auth anônimo
-            startDataListener();
-        };
-
-        function getInitials(name) {
-            return name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
-        }
-
-        // --- Firestore Listener (Tempo Real) ---
-        function startDataListener() {
-            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'nps_records'));
-            
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-                npsData = snapshot.docs.map(doc => ({
-                    firebaseId: doc.id, // ID interno do documento para exclusão/edição
-                    ...doc.data()
-                }));
-                
-                // Ordenar por data (opcional, aqui feito em memória)
-                npsData.sort((a,b) => parseDate(b.data) - parseDate(a.data));
-
-                window.refreshDashboard();
-            }, (error) => {
-                console.error("Erro listener:", error);
-                showToast("Erro de conexão com banco de dados.", "warning");
-            });
-        }
-
-        // --- Operações de Banco de Dados ---
-        
+        // Expor para o global
         window.dbAdd = async function(record) {
             try {
-                // Força o analista atual no registro se não informado
                 if(!record.analista) record.analista = currentAnalista;
-                
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'nps_records'), record);
+                await addDoc(collection(db, COLLECTION_NAME), record);
                 return true;
-            } catch(e) { console.error(e); showToast("Erro ao salvar", "warning"); return false; }
+            } catch(e) { console.error(e); showToast("Erro ao salvar: " + e.message, "warning"); return false; }
         };
 
         window.dbUpdate = async function(id, record) {
             try {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'nps_records', id);
+                const docRef = doc(db, COLLECTION_NAME, id);
                 await updateDoc(docRef, record);
                 return true;
             } catch(e) { console.error(e); showToast("Erro ao atualizar", "warning"); return false; }
@@ -138,7 +86,7 @@ const appId = 'dashboard-nps-v1';
 
         window.dbDelete = async function(id) {
             try {
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'nps_records', id));
+                await deleteDoc(doc(db, COLLECTION_NAME, id));
                 return true;
             } catch(e) { console.error(e); return false; }
         };
@@ -147,7 +95,7 @@ const appId = 'dashboard-nps-v1';
             try {
                 const batch = writeBatch(db);
                 idsArray.forEach(id => {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'nps_records', id);
+                    const docRef = doc(db, COLLECTION_NAME, id);
                     batch.delete(docRef);
                 });
                 await batch.commit();
@@ -155,13 +103,71 @@ const appId = 'dashboard-nps-v1';
             } catch(e) { console.error(e); return false; }
         }
 
-        // Inicialização
-        initAuth();
+        // --- Listener de Dados (O Coração do Sistema) ---
+        function startDataListener() {
+            // Removemos o 'orderBy' na query para evitar erro de índice no início
+            const q = query(collection(db, COLLECTION_NAME));
+            
+            console.log("Iniciando escuta do banco de dados...");
+            
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                console.log(`Recebidos ${snapshot.size} registros do Firebase.`);
+                
+                npsData = snapshot.docs.map(doc => ({
+                    firebaseId: doc.id,
+                    ...doc.data()
+                }));
+                
+                // Ordenação feita no cliente para evitar precisar criar índices no console agora
+                npsData.sort((a,b) => parseDate(b.data) - parseDate(a.data));
+
+                window.refreshDashboard();
+                document.getElementById('loadingIndicator').classList.add('hidden');
+                
+                if(npsData.length === 0) {
+                     document.getElementById('showingCount').textContent = "Banco de dados conectado, mas vazio. Adicione um registro!";
+                }
+
+            }, (error) => {
+                console.error("ERRO CRÍTICO FIRESTORE:", error);
+                
+                let msg = "Erro desconhecido";
+                if (error.code === 'permission-denied') msg = "Permissão Negada. Verifique as Regras no Console do Firebase.";
+                if (error.code === 'unavailable') msg = "Sem conexão com a internet ou cliente offline.";
+                
+                showErrorBanner(msg);
+                document.getElementById('loadingIndicator').textContent = "Erro de Conexão";
+            });
+        }
+
+        window.performLogin = function() {
+            const name = document.getElementById('loginName').value.trim();
+            const pin = document.getElementById('loginPin').value.trim();
+            
+            if(!name || pin.length !== 4) {
+                alert("Preencha nome e PIN corretamente.");
+                return;
+            }
+
+            currentAnalista = name;
+            localStorage.setItem('nps_user_name', name);
+            
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('userNameDisplay').textContent = getInitials(name);
+            
+            showToast(`Olá, ${name}!`, 'success');
+            
+            // Inicia tudo
+            initAuth().then(() => {
+                startDataListener();
+            });
+        };
         
-        // Verifica se já tem nome salvo para "pular" login ou preencher
+        function getInitials(name) { return name.substring(0,2).toUpperCase(); }
+
+        // Auto-start se já tiver usuário (opcional, aqui forçamos o login visual para garantir)
         if(currentAnalista) {
             document.getElementById('loginName').value = currentAnalista;
-            // Opcional: Auto-login se quiser, mas por segurança pedimos o PIN de novo ou clique
         }
 
     </script>
@@ -173,527 +179,240 @@ const appId = 'dashboard-nps-v1';
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
         .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
         .chart-container { position: relative; height: 300px; width: 100%; }
-        
-        /* Custom Scrollbar */
         .custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
         .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-        
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-        /* Toast Animations */
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        .toast-enter { animation: slideIn 0.4s ease-out forwards; }
-
-        /* Risk Pulse Animation */
-        @keyframes pulse-red {
-            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
-            70% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
-        }
         .risk-badge { animation: pulse-red 2s infinite; }
-        
-        /* Checkbox Custom Style */
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 70% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); } 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
         .custom-checkbox { cursor: pointer; accent-color: #4f46e5; width: 16px; height: 16px; }
     </style>
 </head>
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden">
 
-    <!-- Login Modal (Overlay) -->
+    <!-- Error Banner (Hidden by default) -->
+    <div id="errorBanner" class="hidden bg-red-600 text-white text-center p-2 text-sm font-bold z-50">
+        <span id="errorText">Erro</span>
+    </div>
+
+    <!-- Login Modal -->
     <div id="loginModal" class="fixed inset-0 bg-indigo-900 z-[60] flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center animate-fade-in">
             <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i data-lucide="lock" class="h-8 w-8 text-indigo-600"></i>
             </div>
-            <h2 class="text-2xl font-bold text-gray-800 mb-2">Acesso ao Sistema</h2>
-            <p class="text-gray-500 mb-6 text-sm">Identifique-se para registrar suas tratativas no Firebase.</p>
-            
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Acesso Seguro</h2>
+            <p class="text-gray-500 mb-6 text-sm">Entre para conectar ao Firebase.</p>
             <div class="space-y-4 text-left">
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Seu Nome</label>
-                    <input type="text" id="loginName" placeholder="Ex: Ana Silva" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nome</label>
+                    <input type="text" id="loginName" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-indigo-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">PIN de Acesso (4 Dígitos)</label>
-                    <input type="password" id="loginPin" maxlength="4" placeholder="****" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 outline-none text-center tracking-widest text-lg">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">PIN (4 Dígitos)</label>
+                    <input type="password" id="loginPin" maxlength="4" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-indigo-500 text-center text-lg tracking-widest">
                 </div>
-                <button onclick="performLogin()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-transform hover:scale-[1.02] shadow-lg">
-                    Entrar no Dashboard
-                </button>
+                <button onclick="performLogin()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow-lg">Entrar</button>
             </div>
         </div>
     </div>
 
-    <!-- Confirm Delete Modal -->
+    <!-- Confirm Modal -->
     <div id="confirmModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center animate-fade-in">
-            <div class="bg-red-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600"></i>
-            </div>
             <h3 class="text-lg font-bold text-gray-900 mb-2">Confirmar Exclusão</h3>
-            <p class="text-sm text-gray-500 mb-6" id="confirmText">Tem certeza que deseja excluir este registro? Essa ação não pode ser desfeita.</p>
+            <p class="text-sm text-gray-500 mb-6" id="confirmText">Tem certeza?</p>
             <div class="flex gap-3 justify-center">
-                <button onclick="closeModal('confirmModal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300">Cancelar</button>
-                <button id="confirmBtnAction" class="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 shadow-md">Sim, Excluir</button>
+                <button onclick="closeModal('confirmModal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg">Cancelar</button>
+                <button id="confirmBtnAction" class="px-4 py-2 bg-red-600 text-white rounded-lg shadow-md">Sim, Excluir</button>
             </div>
         </div>
     </div>
 
-    <!-- Toast Container -->
+    <!-- Toast -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3"></div>
 
-    <!-- Top Navigation -->
+    <!-- Nav -->
     <nav class="bg-indigo-900 text-white shadow-lg z-30 flex-none">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
             <div class="flex items-center space-x-3">
-                <div class="bg-indigo-700 p-2 rounded-lg">
-                    <i data-lucide="cloud" class="h-6 w-6 text-green-400"></i>
-                </div>
+                <div class="bg-indigo-700 p-2 rounded-lg"><i data-lucide="cloud" class="h-6 w-6 text-green-400"></i></div>
                 <div>
-                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 2.0</h1>
-                    <p class="text-xs text-indigo-300 flex items-center gap-1">
-                        <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online • Firebase
-                    </p>
+                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 2.1</h1>
+                    <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
                 </div>
             </div>
             <div class="flex items-center space-x-3">
-                <button onclick="downloadTemplate()" class="hidden md:flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg text-xs transition-colors border border-gray-600">
-                    <i data-lucide="download" class="h-4 w-4"></i>
-                    <span>Modelo</span>
-                </button>
-                <button onclick="exportToExcel()" class="hidden md:flex items-center space-x-2 bg-green-700 hover:bg-green-600 px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm border border-green-600">
-                    <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>
-                    <span>Excel</span>
-                </button>
-                <div id="userNameDisplay" class="h-9 w-9 rounded-full bg-indigo-500 flex items-center justify-center border-2 border-indigo-400 font-bold text-xs cursor-help">
-                    --
-                </div>
+                <div id="userNameDisplay" class="h-9 w-9 rounded-full bg-indigo-500 flex items-center justify-center border-2 border-indigo-400 font-bold text-xs">--</div>
             </div>
         </div>
     </nav>
 
-    <!-- Main Content (Scrollable) -->
+    <!-- Content -->
     <main class="container mx-auto px-4 py-6 flex-grow overflow-y-auto custom-scroll">
         
-        <!-- Action Toolbar -->
+        <!-- Toolbar -->
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <h2 class="text-xl font-bold text-gray-800">Visão Estratégica</h2>
             <div class="flex space-x-2 w-full md:w-auto">
-                <input type="file" id="excelInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleExcelUpload(event)">
-                
-                <!-- Bulk Delete Action (Hidden by default) -->
-                <button id="btnDeleteSelected" onclick="confirmBatchDelete()" class="hidden flex items-center justify-center space-x-2 bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg transition-all text-sm font-bold border border-red-200">
-                    <i data-lucide="trash" class="h-4 w-4"></i>
-                    <span id="selectedCountText">Excluir (0)</span>
-                </button>
-
-                <button onclick="document.getElementById('excelInput').click()" class="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium">
-                    <i data-lucide="sheet" class="h-4 w-4"></i>
-                    <span>Importar</span>
-                </button>
-                
-                <button onclick="openFormModal()" class="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium">
-                    <i data-lucide="plus" class="h-4 w-4"></i>
-                    <span>Novo</span>
-                </button>
+                <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelUpload(event)">
+                <button id="btnDeleteSelected" onclick="confirmBatchDelete()" class="hidden flex items-center bg-red-100 text-red-700 px-4 py-2 rounded-lg text-sm font-bold border border-red-200"><i data-lucide="trash" class="h-4 w-4 mr-2"></i><span id="selectedCountText">Excluir (0)</span></button>
+                <button onclick="document.getElementById('excelInput').click()" class="flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"><i data-lucide="sheet" class="h-4 w-4 mr-2"></i>Importar</button>
+                <button onclick="openFormModal()" class="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium"><i data-lucide="plus" class="h-4 w-4 mr-2"></i>Novo</button>
             </div>
         </div>
 
         <!-- KPIs -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-gray-400">
-                <p class="text-xs text-gray-500 font-bold uppercase">Total Analisado</p>
-                <div class="flex justify-between items-end mt-2">
-                    <h3 class="text-2xl font-bold" id="kpi-total">0</h3>
-                    <i data-lucide="file-text" class="h-5 w-5 text-gray-300"></i>
-                </div>
+                <p class="text-xs text-gray-500 font-bold uppercase">Total</p>
+                <h3 class="text-2xl font-bold mt-2" id="kpi-total">0</h3>
             </div>
-            
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500">
                 <p class="text-xs text-gray-500 font-bold uppercase">Procedentes</p>
-                <div class="flex justify-between items-end mt-2">
-                    <h3 class="text-2xl font-bold text-red-600" id="kpi-procedente">0</h3>
-                    <span class="text-xs font-medium text-red-400" id="kpi-procedente-pct">0%</span>
-                </div>
+                <h3 class="text-2xl font-bold mt-2 text-red-600" id="kpi-procedente">0</h3>
             </div>
-            
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-orange-500">
-                <p class="text-xs text-gray-500 font-bold uppercase">Casos Críticos</p>
-                <div class="flex justify-between items-end mt-2">
-                    <h3 class="text-2xl font-bold text-orange-600" id="kpi-risco">0</h3>
-                    <i data-lucide="siren" class="h-5 w-5 text-orange-500 animate-pulse"></i>
-                </div>
+                <p class="text-xs text-gray-500 font-bold uppercase">Risco Crítico</p>
+                <h3 class="text-2xl font-bold mt-2 text-orange-600" id="kpi-risco">0</h3>
             </div>
-
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-yellow-500">
-                <p class="text-xs text-gray-500 font-bold uppercase">Ações na Rede</p>
-                <div class="flex justify-between items-end mt-2">
-                    <h3 class="text-2xl font-bold" id="kpi-acao-rede">0</h3>
-                    <i data-lucide="alert-triangle" class="h-5 w-5 text-yellow-500"></i>
-                </div>
+                <p class="text-xs text-gray-500 font-bold uppercase">Ações Rede</p>
+                <h3 class="text-2xl font-bold mt-2" id="kpi-acao-rede">0</h3>
             </div>
         </div>
 
-        <!-- Charts Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <div class="bg-white p-5 rounded-xl card-shadow lg:col-span-1">
-                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4 flex justify-between items-center">
-                    Motivos
-                    <button onclick="clearChartFilter()" class="text-xs text-indigo-500 hover:underline">Limpar</button>
-                </h3>
-                <div class="chart-container" style="height: 250px;">
-                    <canvas id="chartMotivos"></canvas>
-                </div>
+        <!-- Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white p-5 rounded-xl card-shadow">
+                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4 flex justify-between">Motivos <button onclick="clearChartFilter()" class="text-xs text-indigo-500">Limpar</button></h3>
+                <div class="chart-container" style="height: 250px;"><canvas id="chartMotivos"></canvas></div>
             </div>
-            
-            <div class="bg-white p-5 rounded-xl card-shadow lg:col-span-1">
-                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4 flex justify-between items-center">
-                    Analistas
-                </h3>
-                <div class="chart-container" style="height: 250px;">
-                    <canvas id="chartAnalistas"></canvas>
-                </div>
-            </div>
-
-            <div class="bg-white p-5 rounded-xl card-shadow lg:col-span-1">
-                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4">Tendência</h3>
-                <div class="chart-container" style="height: 250px;">
-                    <canvas id="chartTendencia"></canvas>
-                </div>
+            <div class="bg-white p-5 rounded-xl card-shadow">
+                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4">Analistas</h3>
+                <div class="chart-container" style="height: 250px;"><canvas id="chartAnalistas"></canvas></div>
             </div>
         </div>
 
-        <!-- Data Table -->
+        <!-- Table -->
         <div class="bg-white rounded-xl card-shadow overflow-hidden mb-8">
             <div class="p-5 border-b border-gray-100 bg-gray-50">
-                <!-- Filters -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div class="relative">
-                        <i data-lucide="search" class="absolute left-3 top-2.5 h-4 w-4 text-gray-400"></i>
-                        <input type="text" id="searchInput" placeholder="Buscar ID, FA..." class="pl-10 w-full rounded-lg border-gray-300 border p-2 text-sm">
-                    </div>
-                    <div>
-                         <select id="filterStatus" class="w-full rounded-lg border-gray-300 border p-2 text-sm text-gray-600">
-                            <option value="">Todos Status</option>
-                            <option value="Procedente">Procedente</option>
-                            <option value="Improcedente">Improcedente</option>
-                            <option value="RISCO">⚠️ Risco</option>
-                        </select>
-                    </div>
-                    <div class="flex gap-2">
-                        <input type="date" id="filterDateStart" class="w-full text-sm border p-2 rounded-lg">
-                        <input type="date" id="filterDateEnd" class="w-full text-sm border p-2 rounded-lg">
-                    </div>
-                    <button onclick="clearFilters()" class="bg-gray-200 text-gray-600 rounded-lg px-4 py-2 text-sm">Limpar</button>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input type="text" id="searchInput" placeholder="Buscar..." class="w-full rounded-lg border-gray-300 border p-2 text-sm">
+                    <select id="filterStatus" class="w-full rounded-lg border p-2 text-sm"><option value="">Status</option><option value="Procedente">Procedente</option><option value="RISCO">Risco</option></select>
+                    <button onclick="clearFilters()" class="bg-gray-200 text-gray-600 rounded-lg px-4 py-2 text-sm">Limpar Filtros</button>
                 </div>
             </div>
 
-            <div class="overflow-x-auto custom-scroll">
+            <div class="overflow-x-auto custom-scroll relative min-h-[100px]">
+                <!-- Loading State -->
+                <div id="loadingIndicator" class="absolute inset-0 bg-white/80 z-10 flex items-center justify-center font-bold text-gray-500">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="loader-2" class="animate-spin"></i> Conectando ao Banco de Dados...
+                    </div>
+                </div>
+
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold tracking-wider">
+                    <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold">
                         <tr>
-                            <th class="p-4 border-b w-10 text-center">
-                                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox">
-                            </th>
-                            <th class="p-4 border-b">ID</th>
-                            <th class="p-4 border-b">Data</th>
-                            <th class="p-4 border-b">Nota</th>
-                            <th class="p-4 border-b">Analista</th>
-                            <th class="p-4 border-b">FA / Prestador</th>
-                            <th class="p-4 border-b">Status</th>
-                            <th class="p-4 border-b text-right">Ações</th>
+                            <th class="p-4 w-10"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th>
+                            <th class="p-4">ID / Risco</th>
+                            <th class="p-4">Data</th>
+                            <th class="p-4">Analista</th>
+                            <th class="p-4">Prestador</th>
+                            <th class="p-4">Status</th>
+                            <th class="p-4 text-right">Ações</th>
                         </tr>
                     </thead>
-                    <tbody id="tableBody" class="text-sm divide-y divide-gray-100">
-                        <!-- JS Rendered -->
-                    </tbody>
+                    <tbody id="tableBody" class="text-sm divide-y divide-gray-100"></tbody>
                 </table>
             </div>
-
-            <div class="p-4 border-t border-gray-100 bg-gray-50 flex flex-col items-center justify-center gap-2">
-                <p class="text-xs text-gray-500" id="showingCount">Carregando...</p>
-                <button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hover:bg-indigo-100 px-4 py-2 rounded-full hidden">
-                    Ver Mais
-                </button>
+            <div class="p-4 border-t border-gray-100 text-center">
+                <p class="text-xs text-gray-500" id="showingCount">...</p>
+                <button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hidden px-4 py-2">Ver Mais</button>
             </div>
         </div>
     </main>
 
-    <!-- Modal: View Details -->
+    <!-- Modals -->
     <div id="detailsModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
-            <div class="px-6 py-4 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
-                <h3 class="font-bold text-indigo-900 flex items-center gap-2"><i data-lucide="file-search" class="h-5 w-5"></i> Detalhes</h3>
-                <button onclick="closeModal('detailsModal')" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="h-6 w-6"></i></button>
-            </div>
-            <div class="p-6 max-h-[70vh] overflow-y-auto custom-scroll" id="detailsContent"></div>
-            <div class="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                <button onclick="closeModal('detailsModal')" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg">Fechar</button>
-            </div>
+            <div class="px-6 py-4 bg-indigo-50 border-b flex justify-between"><h3 class="font-bold text-indigo-900">Detalhes</h3><button onclick="closeModal('detailsModal')">X</button></div>
+            <div class="p-6 max-h-[70vh] overflow-y-auto" id="detailsContent"></div>
         </div>
     </div>
 
-    <!-- Modal: Add/Edit Form -->
     <div id="formModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between items-center">
-                <h3 class="font-bold" id="formModalTitle">Registro</h3>
-                <button onclick="closeModal('formModal')" class="text-indigo-200 hover:text-white"><i data-lucide="x" class="h-6 w-6"></i></button>
-            </div>
-            
-            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scroll">
-                <input type="hidden" id="editIndex" value="">
-                <!-- Campo hidden para ID do Firebase -->
-                <input type="hidden" id="firebaseId" value=""> 
-                
+            <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between"><h3 class="font-bold" id="formModalTitle">Registro</h3><button onclick="closeModal('formModal')">X</button></div>
+            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                <input type="hidden" id="firebaseId"><input type="hidden" id="editIndex">
                 <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">ID Assistência</label>
-                        <input type="number" id="inpAssistencia" required class="w-full rounded-lg border-gray-300 border p-2 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Data</label>
-                        <input type="text" id="inpData" placeholder="DD/MM/AAAA" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
-                    </div>
+                    <input type="number" id="inpAssistencia" placeholder="ID" required class="border p-2 rounded text-sm">
+                    <input type="text" id="inpData" placeholder="Data" class="border p-2 rounded text-sm">
+                    <input type="number" id="inpNota" placeholder="Nota" required class="border p-2 rounded text-sm">
+                    <input type="text" id="inpAnalista" readonly class="border p-2 rounded text-sm bg-gray-100">
+                    <input type="text" id="inpFA" placeholder="FA" class="border p-2 rounded text-sm">
+                    <input type="text" id="inpPrestador" placeholder="Prestador" class="border p-2 rounded text-sm">
+                    <select id="inpStatus" class="border p-2 rounded text-sm"><option value="Procedente">Procedente</option><option value="Improcedente">Improcedente</option><option value="Em Análise">Em Análise</option></select>
+                    <input type="text" id="inpMotivo" placeholder="Motivo" class="border p-2 rounded text-sm">
                 </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Nota NPS</label>
-                        <input type="number" id="inpNota" required min="0" max="10" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Analista</label>
-                        <input type="text" id="inpAnalista" class="w-full rounded-lg border-gray-300 border p-2 text-sm bg-gray-100 text-gray-500" readonly>
-                        <p class="text-[10px] text-gray-400 text-right">Preenchido automaticamente</p>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-3 gap-4">
-                    <div class="col-span-1">
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Cód. FA</label>
-                        <input type="text" id="inpFA" placeholder="FA..." class="w-full rounded-lg border-gray-300 border p-2 text-sm">
-                    </div>
-                    <div class="col-span-2">
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Prestador</label>
-                        <input type="text" id="inpPrestador" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Status</label>
-                        <select id="inpStatus" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
-                            <option value="Procedente">Procedente</option>
-                            <option value="Improcedente">Improcedente</option>
-                            <option value="Em Análise">Em Análise</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Motivo</label>
-                        <input type="text" id="inpMotivo" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Comentário Técnico</label>
-                    <textarea id="inpComentario" rows="3" class="w-full rounded-lg border-gray-300 border p-2 text-sm"></textarea>
-                </div>
-                
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Ação na Rede</label>
-                    <input type="text" id="inpAcao" class="w-full rounded-lg border-gray-300 border p-2 text-sm">
-                </div>
-
-                <div class="pt-4 flex justify-end gap-3">
-                    <button type="button" onclick="closeModal('formModal')" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancelar</button>
-                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md">Salvar</button>
-                </div>
+                <textarea id="inpComentario" rows="3" placeholder="Comentário" class="w-full border p-2 rounded text-sm"></textarea>
+                <input type="text" id="inpAcao" placeholder="Ação na Rede" class="w-full border p-2 rounded text-sm">
+                <button type="submit" class="w-full bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700">Salvar</button>
             </form>
         </div>
     </div>
 
-    <!-- Application Script -->
     <script>
-        // Constants & State
-        const RISK_KEYWORDS = ['procon', 'advogado', 'justiça', 'processo', 'reclame aqui', 'mídia', 'ameaça', 'susep'];
+        // Logic Vars
+        const RISK_KEYWORDS = ['procon', 'advogado', 'justiça', 'ameaça'];
         let visibleItems = 5;
         let chartInstances = {};
         let activeChartFilter = null;
-        let selectedRecordId = null; // Used for Single Delete Confirmation
+        let selectedRecordId = null;
 
-        document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
-            
-            // Listeners for filters
-            ['searchInput', 'filterStatus', 'filterDateStart', 'filterDateEnd'].forEach(id => {
-                document.getElementById(id).addEventListener('input', () => {
-                    visibleItems = 5;
-                    activeChartFilter = null;
-                    refreshTable();
-                });
-            });
-        });
+        // UI Helpers
+        function checkRisk(text) { return text && RISK_KEYWORDS.some(k => text.toLowerCase().includes(k)); }
+        function parseDate(d) { if(!d) return 0; if(d.includes('/')) { const p=d.split('/'); return new Date(p[2],p[1]-1,p[0]).getTime(); } return 0; }
+        function showToast(msg, type='info') {
+            const t = document.createElement('div');
+            t.className = `p-4 rounded shadow-xl text-white text-sm bg-gray-800 border-l-4 border-indigo-500 toast-enter`;
+            if(type==='warning') t.classList.replace('bg-gray-800', 'bg-red-600');
+            t.textContent = msg;
+            document.getElementById('toast-container').appendChild(t);
+            setTimeout(()=>t.remove(), 3000);
+        }
+        function showErrorBanner(msg) {
+            const b = document.getElementById('errorBanner');
+            document.getElementById('errorText').textContent = msg;
+            b.classList.remove('hidden');
+        }
 
-        // --- Core Functions ---
-
+        // Dashboard Core
         window.refreshDashboard = function() {
             refreshKPIs();
             refreshTable();
             refreshCharts();
         }
 
-        // --- Utility ---
-        function checkRisk(text) {
-            if (!text) return false;
-            return RISK_KEYWORDS.some(k => text.toLowerCase().includes(k));
-        }
-
-        function parseDate(dateStr) {
-            if(!dateStr) return 0;
-            if(dateStr instanceof Date) return dateStr.getTime();
-            // Try DD/MM/YYYY
-            if(typeof dateStr === 'string' && dateStr.includes('/')) {
-                const p = dateStr.split('/');
-                if(p.length === 3) return new Date(p[2], p[1]-1, p[0]).getTime();
-            }
-            return 0;
-        }
-
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            let colors = "bg-gray-800 border-gray-700";
-            if(type === 'success') colors = "bg-green-600 border-green-500";
-            if(type === 'warning') colors = "bg-red-500 border-red-400";
-            
-            toast.className = `p-4 rounded-lg shadow-xl text-white text-sm font-medium flex items-center min-w-[300px] border-l-4 toast-enter ${colors}`;
-            toast.textContent = message;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        // --- Bulk Selection Logic ---
-
-        window.toggleSelectAll = function() {
-            const master = document.getElementById('selectAllCheckbox');
-            const checkboxes = document.querySelectorAll('.row-checkbox');
-            
-            selectedIds.clear();
-            if (master.checked) {
-                // Only select visible rows
-                checkboxes.forEach(cb => {
-                    cb.checked = true;
-                    selectedIds.add(cb.getAttribute('data-id'));
-                });
-            } else {
-                checkboxes.forEach(cb => cb.checked = false);
-            }
-            updateSelectionUI();
-        }
-
-        window.toggleSelectRow = function(id) {
-            const cb = document.querySelector(`.row-checkbox[data-id="${id}"]`);
-            if (cb.checked) selectedIds.add(id);
-            else selectedIds.delete(id);
-            
-            // Update master checkbox
-            const allVisible = document.querySelectorAll('.row-checkbox');
-            document.getElementById('selectAllCheckbox').checked = (allVisible.length > 0 && selectedIds.size === allVisible.length);
-            
-            updateSelectionUI();
-        }
-
-        function updateSelectionUI() {
-            const btn = document.getElementById('btnDeleteSelected');
-            const countSpan = document.getElementById('selectedCountText');
-            
-            if (selectedIds.size > 0) {
-                btn.classList.remove('hidden');
-                btn.classList.add('flex');
-                countSpan.textContent = `Excluir (${selectedIds.size})`;
-            } else {
-                btn.classList.add('hidden');
-                btn.classList.remove('flex');
-            }
-        }
-
-        // --- Confirmation Modal Logic ---
-
-        window.confirmSingleDelete = function(id) {
-            selectedRecordId = id;
-            document.getElementById('confirmText').textContent = "Tem certeza que deseja excluir este registro?";
-            const btn = document.getElementById('confirmBtnAction');
-            btn.onclick = executeSingleDelete;
-            document.getElementById('confirmModal').classList.remove('hidden');
-        }
-
-        window.confirmBatchDelete = function() {
-            if (selectedIds.size === 0) return;
-            document.getElementById('confirmText').textContent = `Tem certeza que deseja excluir ${selectedIds.size} registros selecionados?`;
-            const btn = document.getElementById('confirmBtnAction');
-            btn.onclick = executeBatchDelete;
-            document.getElementById('confirmModal').classList.remove('hidden');
-        }
-
-        async function executeSingleDelete() {
-            closeModal('confirmModal');
-            if(await window.dbDelete(selectedRecordId)) {
-                showToast("Registro excluído", "warning");
-            }
-        }
-
-        async function executeBatchDelete() {
-            closeModal('confirmModal');
-            const ids = Array.from(selectedIds);
-            if(await window.dbDeleteBatch(ids)) {
-                showToast(`${ids.length} registros excluídos`, "warning");
-                selectedIds.clear();
-                updateSelectionUI();
-                document.getElementById('selectAllCheckbox').checked = false;
-            }
-        }
-
-        // --- Data Display ---
-
         function getFilteredData() {
-            // Get data from npsData (which is synced via Firebase listener)
             const term = document.getElementById('searchInput').value.toLowerCase();
-            const statusFilter = document.getElementById('filterStatus').value;
-            const dateStart = document.getElementById('filterDateStart').valueAsDate;
-            const dateEnd = document.getElementById('filterDateEnd').valueAsDate;
-
-            return npsData.filter(item => {
-                const matchesText = String(item.assistencia).includes(term) || 
-                                    (item.analista || '').toLowerCase().includes(term) ||
-                                    (item.prestador || '').toLowerCase().includes(term) ||
-                                    (item.fa || '').toLowerCase().includes(term);
-
-                let matchesStatus = true;
-                if (statusFilter === 'RISCO') matchesStatus = checkRisk(item.comentario);
-                else if (statusFilter !== "") matchesStatus = item.status === statusFilter;
-
-                let matchesDate = true;
-                if (dateStart || dateEnd) {
-                    const d = parseDate(item.data);
-                    if (d) {
-                        if (dateStart && d < dateStart.getTime()) matchesDate = false;
-                        if (dateEnd && d > dateEnd.getTime()) matchesDate = false;
-                    }
+            const status = document.getElementById('filterStatus').value;
+            return npsData.filter(i => {
+                const textMatch = String(i.assistencia).includes(term) || (i.prestador||'').toLowerCase().includes(term);
+                let statusMatch = true;
+                if(status === 'RISCO') statusMatch = checkRisk(i.comentario);
+                else if(status) statusMatch = i.status === status;
+                
+                let chartMatch = true;
+                if(activeChartFilter) {
+                    if(activeChartFilter.type === 'motivo') chartMatch = i.motivo === activeChartFilter.value;
+                    else if(activeChartFilter.type === 'analista') chartMatch = i.analista === activeChartFilter.value;
                 }
-
-                let matchesChart = true;
-                if (activeChartFilter) {
-                    if (activeChartFilter.type === 'analista') matchesChart = item.analista === activeChartFilter.value;
-                    else if (activeChartFilter.type === 'motivo') matchesChart = item.motivo === activeChartFilter.value;
-                }
-
-                return matchesText && matchesStatus && matchesDate && matchesChart;
+                return textMatch && statusMatch && chartMatch;
             });
         }
 
@@ -701,241 +420,152 @@ const appId = 'dashboard-nps-v1';
             const filtered = getFilteredData();
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
-
-            const toShow = filtered.slice(0, visibleItems);
-
-            if (filtered.length === 0) {
-                document.getElementById('showingCount').textContent = "Nenhum registro encontrado.";
-            } else {
-                document.getElementById('showingCount').textContent = `Mostrando ${toShow.length} de ${filtered.length} registros`;
-            }
             
-            toShow.forEach(row => {
+            if(filtered.length === 0 && npsData.length > 0) document.getElementById('showingCount').textContent = "Sem resultados para o filtro.";
+            else if (npsData.length === 0) document.getElementById('showingCount').textContent = "Nenhum dado no banco.";
+            else document.getElementById('showingCount').textContent = `Exibindo ${Math.min(visibleItems, filtered.length)} de ${filtered.length}`;
+
+            filtered.slice(0, visibleItems).forEach(row => {
                 const isRisk = checkRisk(row.comentario);
-                const isSelected = selectedIds.has(row.firebaseId);
-                
+                const isSel = selectedIds.has(row.firebaseId);
                 const tr = document.createElement('tr');
-                tr.className = `hover:bg-indigo-50/50 transition-colors border-b border-gray-100 last:border-0 fade-in ${isRisk ? 'bg-red-50' : ''}`;
-                
-                let statusBadge = "bg-gray-100 text-gray-800";
-                if(row.status === 'Procedente') statusBadge = "bg-red-100 text-red-800 border border-red-200";
-                if(row.status === 'Improcedente') statusBadge = "bg-green-100 text-green-800 border border-green-200";
-
-                const riskBadge = isRisk ? `<span class="risk-badge ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white uppercase tracking-wider">RISCO</span>` : '';
-
+                tr.className = `hover:bg-indigo-50 transition border-b border-gray-100 ${isRisk ? 'bg-red-50' : ''}`;
                 tr.innerHTML = `
-                    <td class="p-4 text-center">
-                        <input type="checkbox" class="custom-checkbox row-checkbox" data-id="${row.firebaseId}" ${isSelected ? 'checked' : ''} onchange="toggleSelectRow('${row.firebaseId}')">
-                    </td>
-                    <td class="p-4 font-bold text-indigo-900">#${row.assistencia} ${riskBadge}</td>
+                    <td class="p-4"><input type="checkbox" class="custom-checkbox row-cb" data-id="${row.firebaseId}" ${isSel ? 'checked' : ''} onchange="toggleSelectRow('${row.firebaseId}')"></td>
+                    <td class="p-4 font-bold text-indigo-900">#${row.assistencia} ${isRisk ? '<span class="risk-badge bg-red-600 text-white text-[10px] px-2 rounded ml-2">RISCO</span>' : ''}</td>
                     <td class="p-4 text-gray-500">${row.data || '-'}</td>
-                    <td class="p-4"><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${row.nota < 7 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${row.nota}</span></td>
-                    <td class="p-4 text-gray-700 text-xs">${row.analista}</td>
-                    <td class="p-4 text-gray-600 text-xs truncate max-w-[200px]" title="${row.prestador}">
-                        ${row.fa ? `<span class="font-bold text-indigo-700 bg-indigo-50 px-1 rounded mr-1">${row.fa}</span>` : ''} ${row.prestador}
-                    </td>
-                    <td class="p-4"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadge}">${row.status}</span></td>
-                    <td class="p-4 text-right">
-                        <div class="flex justify-end gap-1">
-                            <button onclick="viewDetails('${row.firebaseId}')" class="p-1.5 text-gray-500 hover:text-indigo-600"><i data-lucide="eye" class="h-4 w-4"></i></button>
-                            <button onclick="openFormModal('${row.firebaseId}')" class="p-1.5 text-gray-500 hover:text-blue-600"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
-                            <button onclick="confirmSingleDelete('${row.firebaseId}')" class="p-1.5 text-gray-500 hover:text-red-600"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
-                        </div>
+                    <td class="p-4 text-gray-700">${row.analista}</td>
+                    <td class="p-4 text-gray-600 truncate max-w-[150px]">${row.prestador}</td>
+                    <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold ${row.status==='Procedente'?'bg-red-100 text-red-800':'bg-green-100 text-green-800'}">${row.status}</span></td>
+                    <td class="p-4 text-right flex justify-end gap-1">
+                        <button onclick="viewDetails('${row.firebaseId}')" class="p-1 hover:text-indigo-600"><i data-lucide="eye" class="h-4 w-4"></i></button>
+                        <button onclick="openFormModal('${row.firebaseId}')" class="p-1 hover:text-blue-600"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
+                        <button onclick="confirmSingleDelete('${row.firebaseId}')" class="p-1 hover:text-red-600"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
-
             lucide.createIcons();
             document.getElementById('loadMoreBtn').classList.toggle('hidden', visibleItems >= filtered.length);
         }
 
-        // --- KPIs and Charts (Simplified) ---
-        function refreshKPIs() {
-            const total = npsData.length;
-            const procedente = npsData.filter(d => d.status === 'Procedente').length;
-            const risk = npsData.filter(d => checkRisk(d.comentario)).length;
-            const rede = npsData.filter(d => d.acaoRede && d.acaoRede !== 'Nenhuma').length;
-
-            document.getElementById('kpi-total').textContent = total;
-            document.getElementById('kpi-procedente').textContent = procedente;
-            document.getElementById('kpi-procedente-pct').textContent = total ? Math.round((procedente/total)*100) + '%' : '0%';
-            document.getElementById('kpi-risco').textContent = risk;
-            document.getElementById('kpi-acao-rede').textContent = rede;
-        }
-
-        function refreshCharts() {
-            // Simplified aggregation
-            const motivos = {};
-            const analistas = {};
-            npsData.forEach(d => {
-                motivos[d.motivo || 'Outros'] = (motivos[d.motivo || 'Outros'] || 0) + 1;
-                analistas[d.analista || 'N/A'] = (analistas[d.analista || 'N/A'] || 0) + 1;
+        // Bulk Actions
+        window.toggleSelectAll = function() {
+            const checked = document.getElementById('selectAllCheckbox').checked;
+            document.querySelectorAll('.row-cb').forEach(cb => {
+                cb.checked = checked;
+                if(checked) selectedIds.add(cb.getAttribute('data-id')); else selectedIds.delete(cb.getAttribute('data-id'));
             });
-
-            createChart('chartMotivos', 'bar', Object.keys(motivos), [{data: Object.values(motivos), backgroundColor: '#6366f1'}], (idx) => {
-                activeChartFilter = {type: 'motivo', value: Object.keys(motivos)[idx]};
-                refreshTable();
-            });
-
-            createChart('chartAnalistas', 'bar', Object.keys(analistas), [{data: Object.values(analistas), backgroundColor: '#3b82f6'}], (idx) => {
-                activeChartFilter = {type: 'analista', value: Object.keys(analistas)[idx]};
-                refreshTable();
-            });
-            
-            // Dummy trend chart for visual completeness
-            // (Real trend logic omitted for brevity in V2 update, using simple count)
-             createChart('chartTendencia', 'line', ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'], [{data: [5, 12, 8, 15], borderColor: '#8b5cf6', fill: true}], null);
+            updateBulkUI();
         }
-
-        function createChart(id, type, labels, datasets, clickHandler) {
-            if(chartInstances[id]) chartInstances[id].destroy();
-            const ctx = document.getElementById(id).getContext('2d');
-            chartInstances[id] = new Chart(ctx, {
-                type: type,
-                data: { labels, datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: {display:false} }, x: { grid: {display:false} } },
-                    onClick: (e, elements) => {
-                        if(clickHandler && elements.length > 0) clickHandler(elements[0].index);
-                    }
-                }
-            });
+        window.toggleSelectRow = function(id) {
+            if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+            updateBulkUI();
         }
-
-        function clearChartFilter() {
-            activeChartFilter = null;
-            refreshTable();
-        }
-
-        // --- Form Handling ---
-
-        function openFormModal(id = null) {
-            const form = document.getElementById('recordForm');
-            form.reset();
-            
-            // Auto-fill Analista from Global State
-            document.getElementById('inpAnalista').value = localStorage.getItem('nps_user_name') || "";
-            
-            if (id) {
-                // Edit Mode
-                const item = npsData.find(d => d.firebaseId === id);
-                if(item) {
-                    document.getElementById('firebaseId').value = id;
-                    document.getElementById('inpAssistencia').value = item.assistencia;
-                    document.getElementById('inpData').value = item.data;
-                    document.getElementById('inpNota').value = item.nota;
-                    document.getElementById('inpAnalista').value = item.analista;
-                    document.getElementById('inpPrestador').value = item.prestador;
-                    document.getElementById('inpFA').value = item.fa || "";
-                    document.getElementById('inpStatus').value = item.status;
-                    document.getElementById('inpMotivo').value = item.motivo;
-                    document.getElementById('inpComentario').value = item.comentario;
-                    document.getElementById('inpAcao').value = item.acaoRede;
-                    document.getElementById('formModalTitle').textContent = "Editar Registro";
-                }
+        function updateBulkUI() {
+            const btn = document.getElementById('btnDeleteSelected');
+            if(selectedIds.size > 0) {
+                btn.classList.remove('hidden');
+                btn.classList.add('flex');
+                document.getElementById('selectedCountText').textContent = `Excluir (${selectedIds.size})`;
             } else {
-                // New Mode
-                document.getElementById('firebaseId').value = "";
-                document.getElementById('formModalTitle').textContent = "Novo Registro";
+                btn.classList.add('hidden');
+                btn.classList.remove('flex');
             }
+        }
+
+        // Delete Logic
+        window.confirmSingleDelete = function(id) { selectedRecordId = id; document.getElementById('confirmText').textContent = "Excluir este item?"; document.getElementById('confirmBtnAction').onclick = execSingleDelete; document.getElementById('confirmModal').classList.remove('hidden'); }
+        window.confirmBatchDelete = function() { if(!selectedIds.size)return; document.getElementById('confirmText').textContent = `Excluir ${selectedIds.size} itens?`; document.getElementById('confirmBtnAction').onclick = execBatchDelete; document.getElementById('confirmModal').classList.remove('hidden'); }
+        async function execSingleDelete() { closeModal('confirmModal'); if(await window.dbDelete(selectedRecordId)) showToast("Excluído"); }
+        async function execBatchDelete() { closeModal('confirmModal'); if(await window.dbDeleteBatch(Array.from(selectedIds))) { showToast("Excluídos"); selectedIds.clear(); updateBulkUI(); } }
+
+        // Form & Modals
+        function openFormModal(id) {
+            document.getElementById('recordForm').reset();
+            document.getElementById('inpAnalista').value = currentAnalista;
+            if(id) {
+                const i = npsData.find(d => d.firebaseId === id);
+                document.getElementById('firebaseId').value = id;
+                document.getElementById('inpAssistencia').value = i.assistencia;
+                document.getElementById('inpData').value = i.data;
+                document.getElementById('inpNota').value = i.nota;
+                document.getElementById('inpPrestador').value = i.prestador;
+                document.getElementById('inpFA').value = i.fa;
+                document.getElementById('inpStatus').value = i.status;
+                document.getElementById('inpMotivo').value = i.motivo;
+                document.getElementById('inpComentario').value = i.comentario;
+                document.getElementById('inpAcao').value = i.acaoRede;
+            } else { document.getElementById('firebaseId').value = ""; }
             document.getElementById('formModal').classList.remove('hidden');
         }
-
+        
         async function handleFormSubmit(e) {
             e.preventDefault();
-            
-            const fid = document.getElementById('firebaseId').value;
-            const nota = parseInt(document.getElementById('inpNota').value);
-            
-            const record = {
+            const id = document.getElementById('firebaseId').value;
+            const rec = {
                 assistencia: document.getElementById('inpAssistencia').value,
                 data: document.getElementById('inpData').value,
-                nota: nota,
-                analista: document.getElementById('inpAnalista').value, // Uses logged in name or existing
+                nota: parseInt(document.getElementById('inpNota').value),
+                analista: document.getElementById('inpAnalista').value,
                 prestador: document.getElementById('inpPrestador').value,
                 fa: document.getElementById('inpFA').value,
                 status: document.getElementById('inpStatus').value,
                 motivo: document.getElementById('inpMotivo').value,
                 comentario: document.getElementById('inpComentario').value,
-                acaoRede: document.getElementById('inpAcao').value,
-                // Meta fields
-                updatedAt: new Date().toISOString()
+                acaoRede: document.getElementById('inpAcao').value
             };
-
             closeModal('formModal');
-            
-            if (fid) {
-                if(await window.dbUpdate(fid, record)) showToast("Atualizado com sucesso!", "success");
-            } else {
-                record.createdAt = new Date().toISOString();
-                if(await window.dbAdd(record)) showToast("Criado com sucesso!", "success");
-            }
+            if(id) await window.dbUpdate(id, rec); else await window.dbAdd(rec);
+            showToast("Salvo!");
         }
-
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-        function loadMore() { visibleItems += 5; refreshTable(); }
         
         function viewDetails(id) {
-            const item = npsData.find(d => d.firebaseId === id);
-            if(!item) return;
-            
-            let html = `<div class="grid grid-cols-2 gap-4 mb-4">`;
-            for (const [key, value] of Object.entries(item)) {
-                if(key !== 'comentario' && key !== 'firebaseId') {
-                     html += `<div><p class="text-xs text-gray-400 uppercase font-bold">${key}</p><p class="text-sm font-medium">${value}</p></div>`;
-                }
-            }
-            html += `</div>`;
-            html += `<div class="bg-gray-50 p-3 rounded border"><p class="text-xs text-gray-400 uppercase font-bold mb-1">Comentário</p><p class="text-sm">${item.comentario}</p></div>`;
-            document.getElementById('detailsContent').innerHTML = html;
+            const i = npsData.find(d => d.firebaseId === id);
+            document.getElementById('detailsContent').innerHTML = `<p><strong>ID:</strong> ${i.assistencia}</p><p><strong>Comentário:</strong> ${i.comentario}</p>`;
             document.getElementById('detailsModal').classList.remove('hidden');
         }
 
-        // --- Excel Import (Wrapper for Cloud) ---
+        function refreshKPIs() {
+            document.getElementById('kpi-total').textContent = npsData.length;
+            document.getElementById('kpi-procedente').textContent = npsData.filter(d=>d.status==='Procedente').length;
+            document.getElementById('kpi-risco').textContent = npsData.filter(d=>checkRisk(d.comentario)).length;
+            document.getElementById('kpi-acao-rede').textContent = npsData.filter(d=>d.acaoRede && d.acaoRede !== 'Nenhuma').length;
+        }
+
+        function refreshCharts() {
+            const m = {}; const a = {};
+            npsData.forEach(d => { m[d.motivo||'Outros'] = (m[d.motivo||'Outros']||0)+1; a[d.analista||'N/A'] = (a[d.analista||'N/A']||0)+1; });
+            drawChart('chartMotivos', 'bar', Object.keys(m), Object.values(m), (i)=> {activeChartFilter={type:'motivo',value:Object.keys(m)[i]}; refreshTable();});
+            drawChart('chartAnalistas', 'bar', Object.keys(a), Object.values(a), (i)=> {activeChartFilter={type:'analista',value:Object.keys(a)[i]}; refreshTable();});
+        }
+        function drawChart(id, t, l, d, cb) {
+            if(chartInstances[id]) chartInstances[id].destroy();
+            chartInstances[id] = new Chart(document.getElementById(id), {type:t, data:{labels:l,datasets:[{data:d, backgroundColor:'#6366f1'}]}, options:{plugins:{legend:{display:false}}, onClick:(e,el)=>{if(el.length)cb(el[0].index)}}});
+        }
+        function clearChartFilter() { activeChartFilter=null; refreshTable(); }
+        function clearFilters() { document.getElementById('searchInput').value=''; document.getElementById('filterStatus').value=''; clearChartFilter(); }
+        function loadMore() { visibleItems+=5; refreshTable(); }
+
+        // Cloud Import
         function handleExcelUpload(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                
-                showToast("Importando dados para a nuvem...", "info");
-                
-                let count = 0;
-                for(let row of json) {
-                    const rec = {
-                         assistencia: row['Assistencia'] || row['ID'] || "0000",
-                         nota: row['Nota'] || 0,
-                         status: row['Status'] || "Em Análise",
-                         comentario: row['Comentario'] || "",
-                         analista: localStorage.getItem('nps_user_name') || "Importado",
-                         createdAt: new Date().toISOString()
-                    };
-                    await window.dbAdd(rec);
-                    count++;
+            const f = e.target.files[0]; if(!f)return;
+            const r = new FileReader();
+            r.onload = async function(e) {
+                const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+                const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                let c=0;
+                for(let r of rows) {
+                    await window.dbAdd({assistencia:r.ID||r.Assistencia||"000", nota:r.Nota||0, status:r.Status||"Em Análise", comentario:r.Comentario||"", analista:currentAnalista});
+                    c++;
                 }
-                showToast(`${count} registros sincronizados!`, "success");
+                showToast(`${c} importados para nuvem!`);
             };
-            reader.readAsArrayBuffer(file);
+            r.readAsArrayBuffer(f);
         }
-
-        // Templates/Export
-        function downloadTemplate() { /* Same as V1 */ }
-        function exportToExcel() { /* Same as V1 using npsData */ }
-
-        // Click outside modals
-        window.onclick = function(event) {
-            if (event.target.classList.contains('fixed')) {
-                 if(event.target.id !== 'loginModal') event.target.classList.add('hidden');
-            }
-        }
+        
+        window.onclick = function(e) { if(e.target.classList.contains('fixed') && e.target.id !== 'loginModal') e.target.classList.add('hidden'); }
     </script>
 </body>
 </html>
-
