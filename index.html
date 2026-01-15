@@ -17,161 +17,6 @@
     <!-- SheetJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // =================================================================
-        // ÁREA DE CONFIGURAÇÃO - COLE SEUS DADOS AQUI
-        // =================================================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyCItfDagWuxFQnx036b7gIovTXABhbFmZQ",
-            authDomain: "comunidade-ferramentas.firebaseapp.com",
-            projectId: "comunidade-ferramentas",
-            storageBucket: "comunidade-ferramentas.firebasestorage.app",
-            messagingSenderId: "544906177736",
-            appId: "1:544906177736:web:332554f4c76d9bd65549fd",
-            measurementId: "G-WD4RY0531H"
-        };
-        // =================================================================
-
-        // Inicialização
-        let app, auth, db;
-        try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-            console.log("Firebase inicializado.");
-        } catch (e) {
-            alert("Erro ao iniciar Firebase. Verifique se colou a configuração correta no código.");
-            console.error(e);
-        }
-
-        // Variáveis Globais
-        let npsData = []; 
-        let currentAnalista = localStorage.getItem('nps_user_name') || "";
-        let selectedIds = new Set();
-        const COLLECTION_NAME = "nps_records"; // Nome simples da coleção na raiz
-
-        // --- Autenticação ---
-        async function initAuth() {
-            try {
-                // Tenta logar anonimamente para ter permissão de acesso
-                await signInAnonymously(auth);
-                console.log("Autenticado anonimamente no Firebase.");
-            } catch (error) {
-                console.error("Erro na autenticação:", error);
-                showErrorBanner(`Erro de Autenticação: ${error.message}`);
-            }
-        }
-        
-        // Expor para o global
-        window.dbAdd = async function(record) {
-            try {
-                if(!record.analista) record.analista = currentAnalista;
-                await addDoc(collection(db, COLLECTION_NAME), record);
-                return true;
-            } catch(e) { console.error(e); showToast("Erro ao salvar: " + e.message, "warning"); return false; }
-        };
-
-        window.dbUpdate = async function(id, record) {
-            try {
-                const docRef = doc(db, COLLECTION_NAME, id);
-                await updateDoc(docRef, record);
-                return true;
-            } catch(e) { console.error(e); showToast("Erro ao atualizar", "warning"); return false; }
-        };
-
-        window.dbDelete = async function(id) {
-            try {
-                await deleteDoc(doc(db, COLLECTION_NAME, id));
-                return true;
-            } catch(e) { console.error(e); return false; }
-        };
-
-        window.dbDeleteBatch = async function(idsArray) {
-            try {
-                const batch = writeBatch(db);
-                idsArray.forEach(id => {
-                    const docRef = doc(db, COLLECTION_NAME, id);
-                    batch.delete(docRef);
-                });
-                await batch.commit();
-                return true;
-            } catch(e) { console.error(e); return false; }
-        }
-
-        // --- Listener de Dados (O Coração do Sistema) ---
-        function startDataListener() {
-            // Removemos o 'orderBy' na query para evitar erro de índice no início
-            const q = query(collection(db, COLLECTION_NAME));
-            
-            console.log("Iniciando escuta do banco de dados...");
-            
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-                console.log(`Recebidos ${snapshot.size} registros do Firebase.`);
-                
-                npsData = snapshot.docs.map(doc => ({
-                    firebaseId: doc.id,
-                    ...doc.data()
-                }));
-                
-                // Ordenação feita no cliente para evitar precisar criar índices no console agora
-                npsData.sort((a,b) => parseDate(b.data) - parseDate(a.data));
-
-                window.refreshDashboard();
-                document.getElementById('loadingIndicator').classList.add('hidden');
-                
-                if(npsData.length === 0) {
-                     document.getElementById('showingCount').textContent = "Banco de dados conectado, mas vazio. Adicione um registro!";
-                }
-
-            }, (error) => {
-                console.error("ERRO CRÍTICO FIRESTORE:", error);
-                
-                let msg = "Erro desconhecido";
-                if (error.code === 'permission-denied') msg = "Permissão Negada. Verifique as Regras no Console do Firebase.";
-                if (error.code === 'unavailable') msg = "Sem conexão com a internet ou cliente offline.";
-                
-                showErrorBanner(msg);
-                document.getElementById('loadingIndicator').textContent = "Erro de Conexão";
-            });
-        }
-
-        window.performLogin = function() {
-            const name = document.getElementById('loginName').value.trim();
-            const pin = document.getElementById('loginPin').value.trim();
-            
-            if(!name || pin.length !== 4) {
-                alert("Preencha nome e PIN corretamente.");
-                return;
-            }
-
-            currentAnalista = name;
-            localStorage.setItem('nps_user_name', name);
-            
-            document.getElementById('loginModal').classList.add('hidden');
-            document.getElementById('userNameDisplay').textContent = getInitials(name);
-            
-            showToast(`Olá, ${name}!`, 'success');
-            
-            // Inicia tudo
-            initAuth().then(() => {
-                startDataListener();
-            });
-        };
-        
-        function getInitials(name) { return name.substring(0,2).toUpperCase(); }
-
-        // Auto-start se já tiver usuário (opcional, aqui forçamos o login visual para garantir)
-        if(currentAnalista) {
-            document.getElementById('loginName').value = currentAnalista;
-        }
-
-    </script>
-
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
@@ -189,10 +34,489 @@
         @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 70% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); } 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
         .custom-checkbox { cursor: pointer; accent-color: #4f46e5; width: 16px; height: 16px; }
     </style>
+
+    <!-- Módulo Único de Aplicação (Lógica + Firebase) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // =================================================================
+        // CONFIGURAÇÃO FIREBASE
+        // =================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCItfDagWuxFQnx036b7gIovTXABhbFmZQ",
+            authDomain: "comunidade-ferramentas.firebaseapp.com",
+            projectId: "comunidade-ferramentas",
+            storageBucket: "comunidade-ferramentas.firebasestorage.app",
+            messagingSenderId: "544906177736",
+            appId: "1:544906177736:web:332554f4c76d9bd65549fd",
+            measurementId: "G-WD4RY0531H"
+        };
+
+        // --- Estado Global ---
+        let app, auth, db;
+        let npsData = []; // Única fonte de verdade dos dados
+        let currentAnalista = localStorage.getItem('nps_user_name') || "";
+        let selectedIds = new Set();
+        let visibleItems = 5;
+        let chartInstances = {};
+        let activeChartFilter = null;
+        let selectedRecordId = null;
+        const COLLECTION_NAME = "nps_records";
+        const RISK_KEYWORDS = ['procon', 'advogado', 'justiça', 'ameaça', 'reclame aqui', 'susep'];
+
+        // --- Inicialização ---
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            console.log("Firebase inicializado com sucesso.");
+        } catch (e) {
+            console.error("Erro Init:", e);
+            alert("Erro crítico ao iniciar Firebase. Verifique console.");
+        }
+
+        // --- Funções Auxiliares ---
+        function checkRisk(text) { 
+            return text && RISK_KEYWORDS.some(k => text.toLowerCase().includes(k)); 
+        }
+        
+        function parseDate(d) { 
+            if(!d) return 0; 
+            if(d.includes('/')) { const p=d.split('/'); return new Date(p[2],p[1]-1,p[0]).getTime(); } 
+            return 0; 
+        }
+
+        function showToast(msg, type='info') {
+            const t = document.createElement('div');
+            t.className = `p-4 rounded shadow-xl text-white text-sm bg-gray-800 border-l-4 border-indigo-500 toast-enter`;
+            if(type==='warning') t.classList.replace('bg-gray-800', 'bg-red-600');
+            if(type==='success') t.classList.replace('bg-gray-800', 'bg-green-600');
+            t.textContent = msg;
+            const container = document.getElementById('toast-container');
+            if(container) container.appendChild(t);
+            setTimeout(()=>t.remove(), 3000);
+        }
+
+        function getInitials(name) { return name ? name.substring(0,2).toUpperCase() : '--'; }
+
+        // --- Lógica de Banco de Dados ---
+        
+        async function initAuth() {
+            try {
+                await signInAnonymously(auth);
+                console.log("Auth OK");
+            } catch (error) {
+                console.error("Auth Erro:", error);
+                document.getElementById('loadingIndicator').innerHTML = `<span class="text-red-600">Erro de Autenticação: ${error.message}</span>`;
+            }
+        }
+
+        function startDataListener() {
+            const q = query(collection(db, COLLECTION_NAME));
+            
+            onSnapshot(q, (snapshot) => {
+                npsData = snapshot.docs.map(doc => ({
+                    firebaseId: doc.id,
+                    ...doc.data()
+                }));
+                
+                // Ordenar por data decrescente
+                npsData.sort((a,b) => parseDate(b.data) - parseDate(a.data));
+
+                refreshDashboard();
+                
+                const loader = document.getElementById('loadingIndicator');
+                if(loader) loader.classList.add('hidden');
+                
+                if(npsData.length === 0) {
+                     const countEl = document.getElementById('showingCount');
+                     if(countEl) countEl.textContent = "Banco conectado. Nenhum registro encontrado.";
+                }
+            }, (error) => {
+                console.error("Firestore Erro:", error);
+                showToast("Erro de conexão: " + error.code, "warning");
+            });
+        }
+
+        // --- Lógica de UI (Dashboard) ---
+
+        function refreshDashboard() {
+            refreshKPIs();
+            refreshTable();
+            refreshCharts();
+        }
+
+        function refreshKPIs() {
+            document.getElementById('kpi-total').textContent = npsData.length;
+            document.getElementById('kpi-procedente').textContent = npsData.filter(d => d.status === 'Procedente').length;
+            document.getElementById('kpi-risco').textContent = npsData.filter(d => checkRisk(d.comentario)).length;
+            document.getElementById('kpi-acao-rede').textContent = npsData.filter(d => d.acaoRede && d.acaoRede !== 'Nenhuma').length;
+            
+            // Cálculos de porcentagem
+            const total = npsData.length;
+            const proc = npsData.filter(d => d.status === 'Procedente').length;
+            document.getElementById('kpi-procedente-pct').textContent = total ? Math.round((proc/total)*100) + '%' : '0%';
+        }
+
+        function getFilteredData() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const status = document.getElementById('filterStatus').value;
+            const dateStart = document.getElementById('filterDateStart').valueAsDate;
+            const dateEnd = document.getElementById('filterDateEnd').valueAsDate;
+
+            return npsData.filter(i => {
+                const textMatch = String(i.assistencia).includes(term) || 
+                                  (i.prestador||'').toLowerCase().includes(term) ||
+                                  (i.analista||'').toLowerCase().includes(term);
+                
+                let statusMatch = true;
+                if(status === 'RISCO') statusMatch = checkRisk(i.comentario);
+                else if(status) statusMatch = i.status === status;
+                
+                let dateMatch = true;
+                if (dateStart || dateEnd) {
+                    const d = parseDate(i.data);
+                    if (d) {
+                        if (dateStart && d < dateStart.getTime()) dateMatch = false;
+                        if (dateEnd && d > dateEnd.getTime()) dateMatch = false;
+                    }
+                }
+
+                let chartMatch = true;
+                if(activeChartFilter) {
+                    if(activeChartFilter.type === 'motivo') chartMatch = i.motivo === activeChartFilter.value;
+                    else if(activeChartFilter.type === 'analista') chartMatch = i.analista === activeChartFilter.value;
+                }
+                return textMatch && statusMatch && dateMatch && chartMatch;
+            });
+        }
+
+        function refreshTable() {
+            const filtered = getFilteredData();
+            const tbody = document.getElementById('tableBody');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+            
+            const showingEl = document.getElementById('showingCount');
+            const loadBtn = document.getElementById('loadMoreBtn');
+
+            if (filtered.length === 0) {
+                if(showingEl) showingEl.textContent = "Nenhum resultado para os filtros.";
+                if(loadBtn) loadBtn.classList.add('hidden');
+            } else {
+                if(showingEl) showingEl.textContent = `Exibindo ${Math.min(visibleItems, filtered.length)} de ${filtered.length}`;
+                if(loadBtn) loadBtn.classList.toggle('hidden', visibleItems >= filtered.length);
+            }
+
+            filtered.slice(0, visibleItems).forEach(row => {
+                const isRisk = checkRisk(row.comentario);
+                const isSel = selectedIds.has(row.firebaseId);
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-indigo-50 transition border-b border-gray-100 ${isRisk ? 'bg-red-50' : ''}`;
+                
+                let statusClass = row.status==='Procedente' ? 'bg-red-100 text-red-800' : 
+                                  row.status==='Improcedente' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+
+                tr.innerHTML = `
+                    <td class="p-4 text-center"><input type="checkbox" class="custom-checkbox row-cb" data-id="${row.firebaseId}" ${isSel ? 'checked' : ''} onchange="window.toggleSelectRow('${row.firebaseId}')"></td>
+                    <td class="p-4 font-bold text-indigo-900">#${row.assistencia} ${isRisk ? '<span class="risk-badge bg-red-600 text-white text-[10px] px-2 rounded ml-2">RISCO</span>' : ''}</td>
+                    <td class="p-4 text-gray-500">${row.data || '-'}</td>
+                    <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold ${row.nota < 7 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${row.nota}</span></td>
+                    <td class="p-4 text-gray-700 text-xs">${row.analista}</td>
+                    <td class="p-4 text-gray-600 text-xs truncate max-w-[150px]" title="${row.fa || ''} ${row.prestador}">
+                        ${row.fa ? `<span class="font-bold text-indigo-700 bg-indigo-50 px-1 rounded mr-1">${row.fa}</span>` : ''} ${row.prestador}
+                    </td>
+                    <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold ${statusClass}">${row.status}</span></td>
+                    <td class="p-4 text-right flex justify-end gap-1">
+                        <button onclick="window.viewDetails('${row.firebaseId}')" class="p-1 hover:text-indigo-600" title="Ver"><i data-lucide="eye" class="h-4 w-4"></i></button>
+                        <button onclick="window.openFormModal('${row.firebaseId}')" class="p-1 hover:text-blue-600" title="Editar"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
+                        <button onclick="window.confirmSingleDelete('${row.firebaseId}')" class="p-1 hover:text-red-600" title="Excluir"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        // --- Gráficos ---
+        function refreshCharts() {
+            const m = {}; const a = {};
+            npsData.forEach(d => { 
+                m[d.motivo||'Outros'] = (m[d.motivo||'Outros']||0)+1; 
+                a[d.analista||'N/A'] = (a[d.analista||'N/A']||0)+1; 
+            });
+            
+            drawChart('chartMotivos', 'bar', Object.keys(m), Object.values(m), (i)=> {
+                activeChartFilter={type:'motivo',value:Object.keys(m)[i]}; 
+                refreshTable();
+            });
+            drawChart('chartAnalistas', 'bar', Object.keys(a), Object.values(a), (i)=> {
+                activeChartFilter={type:'analista',value:Object.keys(a)[i]}; 
+                refreshTable();
+            });
+            
+            // Dummy Tendência (apenas visual por enquanto)
+            drawChart('chartTendencia', 'line', ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'], [5, 12, 8, 15], null);
+        }
+
+        function drawChart(id, t, l, d, cb) {
+            const canvas = document.getElementById(id);
+            if(!canvas) return;
+            if(chartInstances[id]) chartInstances[id].destroy();
+            
+            chartInstances[id] = new Chart(canvas, {
+                type: t, 
+                data:{
+                    labels:l,
+                    datasets:[{
+                        label: 'Qtd',
+                        data:d, 
+                        backgroundColor: t==='line' ? 'rgba(99, 102, 241, 0.2)' : '#6366f1',
+                        borderColor: '#6366f1',
+                        fill: t==='line'
+                    }]
+                }, 
+                options:{
+                    maintainAspectRatio: false,
+                    plugins:{legend:{display:false}}, 
+                    onClick:(e,el)=>{if(cb && el.length)cb(el[0].index)}
+                }
+            });
+        }
+
+        // --- Funções Expostas para o HTML (Window) ---
+        
+        window.performLogin = function() {
+            const name = document.getElementById('loginName').value.trim();
+            const pin = document.getElementById('loginPin').value.trim();
+            
+            if(!name || pin.length !== 4) {
+                alert("Preencha nome e PIN (4 dígitos) corretamente.");
+                return;
+            }
+
+            currentAnalista = name;
+            localStorage.setItem('nps_user_name', name);
+            
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('userNameDisplay').textContent = getInitials(name);
+            document.getElementById('userNameDisplay').title = name;
+            
+            showToast(`Login realizado: ${name}`, 'success');
+            
+            // Inicia conexão
+            initAuth().then(() => {
+                startDataListener();
+            });
+        };
+
+        window.openFormModal = function(id = null) {
+            const form = document.getElementById('recordForm');
+            form.reset();
+            document.getElementById('inpAnalista').value = currentAnalista;
+            
+            if(id) {
+                const i = npsData.find(d => d.firebaseId === id);
+                if(i) {
+                    document.getElementById('firebaseId').value = id;
+                    document.getElementById('inpAssistencia').value = i.assistencia;
+                    document.getElementById('inpData').value = i.data;
+                    document.getElementById('inpNota').value = i.nota;
+                    document.getElementById('inpPrestador').value = i.prestador;
+                    document.getElementById('inpFA').value = i.fa || '';
+                    document.getElementById('inpStatus').value = i.status;
+                    document.getElementById('inpMotivo').value = i.motivo;
+                    document.getElementById('inpComentario').value = i.comentario;
+                    document.getElementById('inpAcao').value = i.acaoRede;
+                    document.getElementById('formModalTitle').textContent = "Editar Registro";
+                }
+            } else { 
+                document.getElementById('firebaseId').value = ""; 
+                document.getElementById('formModalTitle').textContent = "Novo Registro";
+            }
+            document.getElementById('formModal').classList.remove('hidden');
+        };
+
+        window.handleFormSubmit = async function(e) {
+            e.preventDefault();
+            const id = document.getElementById('firebaseId').value;
+            const rec = {
+                assistencia: document.getElementById('inpAssistencia').value,
+                data: document.getElementById('inpData').value,
+                nota: parseInt(document.getElementById('inpNota').value),
+                analista: document.getElementById('inpAnalista').value || currentAnalista,
+                prestador: document.getElementById('inpPrestador').value,
+                fa: document.getElementById('inpFA').value,
+                status: document.getElementById('inpStatus').value,
+                motivo: document.getElementById('inpMotivo').value,
+                comentario: document.getElementById('inpComentario').value,
+                acaoRede: document.getElementById('inpAcao').value
+            };
+            
+            window.closeModal('formModal');
+            
+            try {
+                if(id) {
+                    await updateDoc(doc(db, COLLECTION_NAME, id), rec);
+                    showToast("Registro atualizado!", "success");
+                } else {
+                    rec.createdAt = new Date().toISOString();
+                    await addDoc(collection(db, COLLECTION_NAME), rec);
+                    showToast("Registro criado!", "success");
+                }
+            } catch(err) {
+                console.error(err);
+                showToast("Erro ao salvar: " + err.message, "warning");
+            }
+        };
+
+        window.confirmSingleDelete = function(id) { 
+            selectedRecordId = id; 
+            document.getElementById('confirmText').textContent = "Excluir este item?"; 
+            document.getElementById('confirmBtnAction').onclick = async () => {
+                window.closeModal('confirmModal');
+                try {
+                    await deleteDoc(doc(db, COLLECTION_NAME, selectedRecordId));
+                    showToast("Excluído com sucesso!", "success");
+                } catch(e) { showToast("Erro ao excluir", "warning"); }
+            };
+            document.getElementById('confirmModal').classList.remove('hidden'); 
+        };
+
+        window.confirmBatchDelete = function() {
+            if(!selectedIds.size) return;
+            document.getElementById('confirmText').textContent = `Excluir ${selectedIds.size} itens selecionados?`;
+            document.getElementById('confirmBtnAction').onclick = async () => {
+                window.closeModal('confirmModal');
+                try {
+                    const batch = writeBatch(db);
+                    selectedIds.forEach(id => batch.delete(doc(db, COLLECTION_NAME, id)));
+                    await batch.commit();
+                    showToast(`${selectedIds.size} itens excluídos!`, "success");
+                    selectedIds.clear();
+                    window.updateBulkUI();
+                    document.getElementById('selectAllCheckbox').checked = false;
+                } catch(e) { showToast("Erro na exclusão em massa", "warning"); }
+            };
+            document.getElementById('confirmModal').classList.remove('hidden');
+        };
+
+        window.handleExcelUpload = function(e) {
+            const f = e.target.files[0]; if(!f)return;
+            const r = new FileReader();
+            r.onload = async function(evt) {
+                try {
+                    const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
+                    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                    let c=0;
+                    showToast("Iniciando importação...", "info");
+                    
+                    const batch = writeBatch(db);
+                    // Firestore limits batch to 500 operations. Doing simple loop for safety in this demo or create chunks
+                    // For this simple version, standard loop with promises
+                    for(let r of rows) {
+                        const rec = {
+                            assistencia: r.ID || r.Assistencia || "000",
+                            nota: r.Nota || 0,
+                            data: r.Data || "-",
+                            status: r.Status || "Em Análise",
+                            comentario: r.Comentario || "",
+                            analista: currentAnalista,
+                            prestador: r.Prestador || "",
+                            motivo: r.Motivo || "",
+                            createdAt: new Date().toISOString()
+                        };
+                        await addDoc(collection(db, COLLECTION_NAME), rec);
+                        c++;
+                    }
+                    showToast(`${c} registros importados!`, "success");
+                } catch(err) {
+                    showToast("Erro na importação: " + err.message, "warning");
+                }
+            };
+            r.readAsArrayBuffer(f);
+            e.target.value = '';
+        };
+
+        // --- UI Interactions ---
+        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
+        
+        window.viewDetails = (id) => {
+            const i = npsData.find(d => d.firebaseId === id);
+            if(!i) return;
+            document.getElementById('detailsContent').innerHTML = `
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div><p class="text-xs text-gray-500 font-bold">ASSISTÊNCIA</p><p>${i.assistencia}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold">ANALISTA</p><p>${i.analista}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold">PRESTADOR</p><p>${i.prestador}</p></div>
+                    <div><p class="text-xs text-gray-500 font-bold">MOTIVO</p><p>${i.motivo}</p></div>
+                </div>
+                <div class="bg-gray-50 p-3 rounded border"><p class="text-xs text-gray-500 font-bold mb-1">COMENTÁRIO</p><p class="text-sm text-gray-800">${i.comentario}</p></div>
+            `;
+            document.getElementById('detailsModal').classList.remove('hidden');
+        };
+
+        window.toggleSelectRow = (id) => {
+            if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+            window.updateBulkUI();
+        };
+
+        window.toggleSelectAll = () => {
+            const checked = document.getElementById('selectAllCheckbox').checked;
+            document.querySelectorAll('.row-cb').forEach(cb => {
+                cb.checked = checked;
+                const id = cb.getAttribute('data-id');
+                if(checked) selectedIds.add(id); else selectedIds.delete(id);
+            });
+            window.updateBulkUI();
+        };
+
+        window.updateBulkUI = () => {
+            const btn = document.getElementById('btnDeleteSelected');
+            if(selectedIds.size > 0) {
+                btn.classList.remove('hidden');
+                btn.classList.add('flex');
+                document.getElementById('selectedCountText').textContent = `Excluir (${selectedIds.size})`;
+            } else {
+                btn.classList.add('hidden');
+                btn.classList.remove('flex');
+            }
+        };
+
+        window.loadMore = () => { visibleItems += 5; refreshTable(); };
+        window.clearFilters = () => { 
+            document.getElementById('searchInput').value=''; 
+            document.getElementById('filterStatus').value=''; 
+            window.clearChartFilter(); 
+        };
+        window.clearChartFilter = () => { activeChartFilter=null; refreshTable(); };
+
+        // Inicialização de UI se já logado
+        if(currentAnalista) {
+            document.getElementById('loginName').value = currentAnalista;
+        }
+        
+        // Listeners de Input
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            const ids = ['searchInput', 'filterStatus', 'filterDateStart', 'filterDateEnd'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.addEventListener('input', () => {
+                    visibleItems = 5;
+                    activeChartFilter = null;
+                    refreshTable();
+                });
+            });
+        });
+
+    </script>
 </head>
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden">
 
-    <!-- Error Banner (Hidden by default) -->
+    <!-- Error Banner -->
     <div id="errorBanner" class="hidden bg-red-600 text-white text-center p-2 text-sm font-bold z-50">
         <span id="errorText">Erro</span>
     </div>
@@ -204,7 +528,7 @@
                 <i data-lucide="lock" class="h-8 w-8 text-indigo-600"></i>
             </div>
             <h2 class="text-2xl font-bold text-gray-800 mb-2">Acesso Seguro</h2>
-            <p class="text-gray-500 mb-6 text-sm">Entre para conectar ao Firebase.</p>
+            <p class="text-gray-500 mb-6 text-sm">Identifique-se para acessar o sistema.</p>
             <div class="space-y-4 text-left">
                 <div>
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nome</label>
@@ -214,7 +538,7 @@
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">PIN (4 Dígitos)</label>
                     <input type="password" id="loginPin" maxlength="4" class="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-indigo-500 text-center text-lg tracking-widest">
                 </div>
-                <button onclick="performLogin()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow-lg">Entrar</button>
+                <button onclick="performLogin()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow-lg transition hover:scale-105">Entrar no Sistema</button>
             </div>
         </div>
     </div>
@@ -241,11 +565,11 @@
                 <div class="bg-indigo-700 p-2 rounded-lg"><i data-lucide="cloud" class="h-6 w-6 text-green-400"></i></div>
                 <div>
                     <h1 class="text-lg font-bold tracking-wide">NPS Cloud 2.1</h1>
-                    <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
+                    <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online • Firebase</p>
                 </div>
             </div>
             <div class="flex items-center space-x-3">
-                <div id="userNameDisplay" class="h-9 w-9 rounded-full bg-indigo-500 flex items-center justify-center border-2 border-indigo-400 font-bold text-xs">--</div>
+                <div id="userNameDisplay" class="h-9 w-9 rounded-full bg-indigo-500 flex items-center justify-center border-2 border-indigo-400 font-bold text-xs cursor-help" title="Usuário Logado">--</div>
             </div>
         </div>
     </nav>
@@ -258,28 +582,32 @@
             <h2 class="text-xl font-bold text-gray-800">Visão Estratégica</h2>
             <div class="flex space-x-2 w-full md:w-auto">
                 <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelUpload(event)">
-                <button id="btnDeleteSelected" onclick="confirmBatchDelete()" class="hidden flex items-center bg-red-100 text-red-700 px-4 py-2 rounded-lg text-sm font-bold border border-red-200"><i data-lucide="trash" class="h-4 w-4 mr-2"></i><span id="selectedCountText">Excluir (0)</span></button>
-                <button onclick="document.getElementById('excelInput').click()" class="flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"><i data-lucide="sheet" class="h-4 w-4 mr-2"></i>Importar</button>
-                <button onclick="openFormModal()" class="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium"><i data-lucide="plus" class="h-4 w-4 mr-2"></i>Novo</button>
+                <button id="btnDeleteSelected" onclick="confirmBatchDelete()" class="hidden flex items-center bg-red-100 text-red-700 px-4 py-2 rounded-lg text-sm font-bold border border-red-200 transition hover:bg-red-200"><i data-lucide="trash" class="h-4 w-4 mr-2"></i><span id="selectedCountText">Excluir (0)</span></button>
+                <button onclick="document.getElementById('excelInput').click()" class="flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"><i data-lucide="sheet" class="h-4 w-4 mr-2"></i>Importar</button>
+                <button onclick="openFormModal()" class="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"><i data-lucide="plus" class="h-4 w-4 mr-2"></i>Novo</button>
             </div>
         </div>
 
         <!-- KPIs -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-gray-400">
-                <p class="text-xs text-gray-500 font-bold uppercase">Total</p>
+                <p class="text-xs text-gray-500 font-bold uppercase">Total Analisado</p>
                 <h3 class="text-2xl font-bold mt-2" id="kpi-total">0</h3>
             </div>
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500">
-                <p class="text-xs text-gray-500 font-bold uppercase">Procedentes</p>
+                <div class="flex justify-between">
+                    <p class="text-xs text-gray-500 font-bold uppercase">Procedentes</p>
+                    <span class="text-xs text-red-400 font-bold" id="kpi-procedente-pct">0%</span>
+                </div>
                 <h3 class="text-2xl font-bold mt-2 text-red-600" id="kpi-procedente">0</h3>
             </div>
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-orange-500">
                 <p class="text-xs text-gray-500 font-bold uppercase">Risco Crítico</p>
                 <h3 class="text-2xl font-bold mt-2 text-orange-600" id="kpi-risco">0</h3>
+                <p class="text-[10px] text-gray-400 mt-1">Palavras-chave de alerta</p>
             </div>
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-yellow-500">
-                <p class="text-xs text-gray-500 font-bold uppercase">Ações Rede</p>
+                <p class="text-xs text-gray-500 font-bold uppercase">Ações na Rede</p>
                 <h3 class="text-2xl font-bold mt-2" id="kpi-acao-rede">0</h3>
             </div>
         </div>
@@ -287,7 +615,7 @@
         <!-- Charts -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div class="bg-white p-5 rounded-xl card-shadow">
-                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4 flex justify-between">Motivos <button onclick="clearChartFilter()" class="text-xs text-indigo-500">Limpar</button></h3>
+                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4 flex justify-between">Motivos <button onclick="clearChartFilter()" class="text-xs text-indigo-500 hover:underline">Limpar Filtro</button></h3>
                 <div class="chart-container" style="height: 250px;"><canvas id="chartMotivos"></canvas></div>
             </div>
             <div class="bg-white p-5 rounded-xl card-shadow">
@@ -300,26 +628,29 @@
         <div class="bg-white rounded-xl card-shadow overflow-hidden mb-8">
             <div class="p-5 border-b border-gray-100 bg-gray-50">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <input type="text" id="searchInput" placeholder="Buscar..." class="w-full rounded-lg border-gray-300 border p-2 text-sm">
-                    <select id="filterStatus" class="w-full rounded-lg border p-2 text-sm"><option value="">Status</option><option value="Procedente">Procedente</option><option value="RISCO">Risco</option></select>
-                    <button onclick="clearFilters()" class="bg-gray-200 text-gray-600 rounded-lg px-4 py-2 text-sm">Limpar Filtros</button>
+                    <input type="text" id="searchInput" placeholder="Buscar ID, Prestador..." class="w-full rounded-lg border-gray-300 border p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <select id="filterStatus" class="w-full rounded-lg border p-2 text-sm text-gray-600"><option value="">Todos Status</option><option value="Procedente">Procedente</option><option value="RISCO">⚠️ Risco</option></select>
+                    <div class="flex gap-2">
+                        <input type="date" id="filterDateStart" class="w-full text-sm border p-2 rounded-lg text-gray-500">
+                        <input type="date" id="filterDateEnd" class="w-full text-sm border p-2 rounded-lg text-gray-500">
+                    </div>
                 </div>
             </div>
 
-            <div class="overflow-x-auto custom-scroll relative min-h-[100px]">
+            <div class="overflow-x-auto custom-scroll relative min-h-[150px]">
                 <!-- Loading State -->
-                <div id="loadingIndicator" class="absolute inset-0 bg-white/80 z-10 flex items-center justify-center font-bold text-gray-500">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="loader-2" class="animate-spin"></i> Conectando ao Banco de Dados...
-                    </div>
+                <div id="loadingIndicator" class="absolute inset-0 bg-white/90 z-10 flex flex-col items-center justify-center font-bold text-gray-500">
+                    <i data-lucide="loader-2" class="animate-spin h-8 w-8 mb-2 text-indigo-600"></i> 
+                    <span>Conectando ao Firebase...</span>
                 </div>
 
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold">
+                    <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold tracking-wider">
                         <tr>
-                            <th class="p-4 w-10"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th>
-                            <th class="p-4">ID / Risco</th>
+                            <th class="p-4 w-10 text-center"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th>
+                            <th class="p-4">ID</th>
                             <th class="p-4">Data</th>
+                            <th class="p-4">Nota</th>
                             <th class="p-4">Analista</th>
                             <th class="p-4">Prestador</th>
                             <th class="p-4">Status</th>
@@ -329,243 +660,87 @@
                     <tbody id="tableBody" class="text-sm divide-y divide-gray-100"></tbody>
                 </table>
             </div>
-            <div class="p-4 border-t border-gray-100 text-center">
-                <p class="text-xs text-gray-500" id="showingCount">...</p>
-                <button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hidden px-4 py-2">Ver Mais</button>
+            <div class="p-4 border-t border-gray-100 text-center bg-gray-50">
+                <p class="text-xs text-gray-500 mb-2" id="showingCount">...</p>
+                <button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hidden px-4 py-2 hover:bg-indigo-100 rounded-full transition">Ver Mais Registros</button>
             </div>
         </div>
     </main>
 
-    <!-- Modals -->
+    <!-- Modals (Hidden by default) -->
     <div id="detailsModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
-            <div class="px-6 py-4 bg-indigo-50 border-b flex justify-between"><h3 class="font-bold text-indigo-900">Detalhes</h3><button onclick="closeModal('detailsModal')">X</button></div>
-            <div class="p-6 max-h-[70vh] overflow-y-auto" id="detailsContent"></div>
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in">
+            <div class="px-6 py-4 bg-indigo-50 border-b flex justify-between items-center">
+                <h3 class="font-bold text-indigo-900 flex items-center gap-2"><i data-lucide="file-search" class="h-5 w-5"></i> Detalhes</h3>
+                <button onclick="closeModal('detailsModal')" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="h-6 w-6"></i></button>
+            </div>
+            <div class="p-6 max-h-[70vh] overflow-y-auto custom-scroll" id="detailsContent"></div>
+            <div class="px-6 py-4 bg-gray-50 border-t flex justify-end">
+                <button onclick="closeModal('detailsModal')" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-100">Fechar</button>
+            </div>
         </div>
     </div>
 
     <div id="formModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between"><h3 class="font-bold" id="formModalTitle">Registro</h3><button onclick="closeModal('formModal')">X</button></div>
-            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
+            <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between items-center">
+                <h3 class="font-bold" id="formModalTitle">Registro</h3>
+                <button onclick="closeModal('formModal')" class="text-indigo-200 hover:text-white"><i data-lucide="x" class="h-6 w-6"></i></button>
+            </div>
+            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scroll">
                 <input type="hidden" id="firebaseId"><input type="hidden" id="editIndex">
                 <div class="grid grid-cols-2 gap-4">
-                    <input type="number" id="inpAssistencia" placeholder="ID" required class="border p-2 rounded text-sm">
-                    <input type="text" id="inpData" placeholder="Data" class="border p-2 rounded text-sm">
-                    <input type="number" id="inpNota" placeholder="Nota" required class="border p-2 rounded text-sm">
-                    <input type="text" id="inpAnalista" readonly class="border p-2 rounded text-sm bg-gray-100">
-                    <input type="text" id="inpFA" placeholder="FA" class="border p-2 rounded text-sm">
-                    <input type="text" id="inpPrestador" placeholder="Prestador" class="border p-2 rounded text-sm">
-                    <select id="inpStatus" class="border p-2 rounded text-sm"><option value="Procedente">Procedente</option><option value="Improcedente">Improcedente</option><option value="Em Análise">Em Análise</option></select>
-                    <input type="text" id="inpMotivo" placeholder="Motivo" class="border p-2 rounded text-sm">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">ID Assistência</label>
+                        <input type="number" id="inpAssistencia" required class="w-full border p-2 rounded text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Data</label>
+                        <input type="text" id="inpData" placeholder="DD/MM/AAAA" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
                 </div>
-                <textarea id="inpComentario" rows="3" placeholder="Comentário" class="w-full border p-2 rounded text-sm"></textarea>
-                <input type="text" id="inpAcao" placeholder="Ação na Rede" class="w-full border p-2 rounded text-sm">
-                <button type="submit" class="w-full bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700">Salvar</button>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Nota NPS</label>
+                        <input type="number" id="inpNota" required min="0" max="10" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Analista</label>
+                        <input type="text" id="inpAnalista" readonly class="w-full border p-2 rounded text-sm bg-gray-100 text-gray-600 cursor-not-allowed">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Prestador</label>
+                        <input type="text" id="inpPrestador" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Cód. FA</label>
+                        <input type="text" id="inpFA" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Status</label>
+                        <select id="inpStatus" class="w-full border p-2 rounded text-sm bg-white"><option value="Procedente">Procedente</option><option value="Improcedente">Improcedente</option><option value="Em Análise">Em Análise</option></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Motivo</label>
+                        <input type="text" id="inpMotivo" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Comentário Técnico</label>
+                    <textarea id="inpComentario" rows="3" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Ação na Rede</label>
+                    <input type="text" id="inpAcao" class="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 font-bold shadow-md transition transform hover:scale-[1.02]">Salvar Registro</button>
             </form>
         </div>
     </div>
 
-    <script>
-        // Logic Vars
-        const RISK_KEYWORDS = ['procon', 'advogado', 'justiça', 'ameaça'];
-        let visibleItems = 5;
-        let chartInstances = {};
-        let activeChartFilter = null;
-        let selectedRecordId = null;
-
-        // UI Helpers
-        function checkRisk(text) { return text && RISK_KEYWORDS.some(k => text.toLowerCase().includes(k)); }
-        function parseDate(d) { if(!d) return 0; if(d.includes('/')) { const p=d.split('/'); return new Date(p[2],p[1]-1,p[0]).getTime(); } return 0; }
-        function showToast(msg, type='info') {
-            const t = document.createElement('div');
-            t.className = `p-4 rounded shadow-xl text-white text-sm bg-gray-800 border-l-4 border-indigo-500 toast-enter`;
-            if(type==='warning') t.classList.replace('bg-gray-800', 'bg-red-600');
-            t.textContent = msg;
-            document.getElementById('toast-container').appendChild(t);
-            setTimeout(()=>t.remove(), 3000);
-        }
-        function showErrorBanner(msg) {
-            const b = document.getElementById('errorBanner');
-            document.getElementById('errorText').textContent = msg;
-            b.classList.remove('hidden');
-        }
-
-        // Dashboard Core
-        window.refreshDashboard = function() {
-            refreshKPIs();
-            refreshTable();
-            refreshCharts();
-        }
-
-        function getFilteredData() {
-            const term = document.getElementById('searchInput').value.toLowerCase();
-            const status = document.getElementById('filterStatus').value;
-            return npsData.filter(i => {
-                const textMatch = String(i.assistencia).includes(term) || (i.prestador||'').toLowerCase().includes(term);
-                let statusMatch = true;
-                if(status === 'RISCO') statusMatch = checkRisk(i.comentario);
-                else if(status) statusMatch = i.status === status;
-                
-                let chartMatch = true;
-                if(activeChartFilter) {
-                    if(activeChartFilter.type === 'motivo') chartMatch = i.motivo === activeChartFilter.value;
-                    else if(activeChartFilter.type === 'analista') chartMatch = i.analista === activeChartFilter.value;
-                }
-                return textMatch && statusMatch && chartMatch;
-            });
-        }
-
-        function refreshTable() {
-            const filtered = getFilteredData();
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '';
-            
-            if(filtered.length === 0 && npsData.length > 0) document.getElementById('showingCount').textContent = "Sem resultados para o filtro.";
-            else if (npsData.length === 0) document.getElementById('showingCount').textContent = "Nenhum dado no banco.";
-            else document.getElementById('showingCount').textContent = `Exibindo ${Math.min(visibleItems, filtered.length)} de ${filtered.length}`;
-
-            filtered.slice(0, visibleItems).forEach(row => {
-                const isRisk = checkRisk(row.comentario);
-                const isSel = selectedIds.has(row.firebaseId);
-                const tr = document.createElement('tr');
-                tr.className = `hover:bg-indigo-50 transition border-b border-gray-100 ${isRisk ? 'bg-red-50' : ''}`;
-                tr.innerHTML = `
-                    <td class="p-4"><input type="checkbox" class="custom-checkbox row-cb" data-id="${row.firebaseId}" ${isSel ? 'checked' : ''} onchange="toggleSelectRow('${row.firebaseId}')"></td>
-                    <td class="p-4 font-bold text-indigo-900">#${row.assistencia} ${isRisk ? '<span class="risk-badge bg-red-600 text-white text-[10px] px-2 rounded ml-2">RISCO</span>' : ''}</td>
-                    <td class="p-4 text-gray-500">${row.data || '-'}</td>
-                    <td class="p-4 text-gray-700">${row.analista}</td>
-                    <td class="p-4 text-gray-600 truncate max-w-[150px]">${row.prestador}</td>
-                    <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold ${row.status==='Procedente'?'bg-red-100 text-red-800':'bg-green-100 text-green-800'}">${row.status}</span></td>
-                    <td class="p-4 text-right flex justify-end gap-1">
-                        <button onclick="viewDetails('${row.firebaseId}')" class="p-1 hover:text-indigo-600"><i data-lucide="eye" class="h-4 w-4"></i></button>
-                        <button onclick="openFormModal('${row.firebaseId}')" class="p-1 hover:text-blue-600"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
-                        <button onclick="confirmSingleDelete('${row.firebaseId}')" class="p-1 hover:text-red-600"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-            lucide.createIcons();
-            document.getElementById('loadMoreBtn').classList.toggle('hidden', visibleItems >= filtered.length);
-        }
-
-        // Bulk Actions
-        window.toggleSelectAll = function() {
-            const checked = document.getElementById('selectAllCheckbox').checked;
-            document.querySelectorAll('.row-cb').forEach(cb => {
-                cb.checked = checked;
-                if(checked) selectedIds.add(cb.getAttribute('data-id')); else selectedIds.delete(cb.getAttribute('data-id'));
-            });
-            updateBulkUI();
-        }
-        window.toggleSelectRow = function(id) {
-            if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
-            updateBulkUI();
-        }
-        function updateBulkUI() {
-            const btn = document.getElementById('btnDeleteSelected');
-            if(selectedIds.size > 0) {
-                btn.classList.remove('hidden');
-                btn.classList.add('flex');
-                document.getElementById('selectedCountText').textContent = `Excluir (${selectedIds.size})`;
-            } else {
-                btn.classList.add('hidden');
-                btn.classList.remove('flex');
-            }
-        }
-
-        // Delete Logic
-        window.confirmSingleDelete = function(id) { selectedRecordId = id; document.getElementById('confirmText').textContent = "Excluir este item?"; document.getElementById('confirmBtnAction').onclick = execSingleDelete; document.getElementById('confirmModal').classList.remove('hidden'); }
-        window.confirmBatchDelete = function() { if(!selectedIds.size)return; document.getElementById('confirmText').textContent = `Excluir ${selectedIds.size} itens?`; document.getElementById('confirmBtnAction').onclick = execBatchDelete; document.getElementById('confirmModal').classList.remove('hidden'); }
-        async function execSingleDelete() { closeModal('confirmModal'); if(await window.dbDelete(selectedRecordId)) showToast("Excluído"); }
-        async function execBatchDelete() { closeModal('confirmModal'); if(await window.dbDeleteBatch(Array.from(selectedIds))) { showToast("Excluídos"); selectedIds.clear(); updateBulkUI(); } }
-
-        // Form & Modals
-        function openFormModal(id) {
-            document.getElementById('recordForm').reset();
-            document.getElementById('inpAnalista').value = currentAnalista;
-            if(id) {
-                const i = npsData.find(d => d.firebaseId === id);
-                document.getElementById('firebaseId').value = id;
-                document.getElementById('inpAssistencia').value = i.assistencia;
-                document.getElementById('inpData').value = i.data;
-                document.getElementById('inpNota').value = i.nota;
-                document.getElementById('inpPrestador').value = i.prestador;
-                document.getElementById('inpFA').value = i.fa;
-                document.getElementById('inpStatus').value = i.status;
-                document.getElementById('inpMotivo').value = i.motivo;
-                document.getElementById('inpComentario').value = i.comentario;
-                document.getElementById('inpAcao').value = i.acaoRede;
-            } else { document.getElementById('firebaseId').value = ""; }
-            document.getElementById('formModal').classList.remove('hidden');
-        }
-        
-        async function handleFormSubmit(e) {
-            e.preventDefault();
-            const id = document.getElementById('firebaseId').value;
-            const rec = {
-                assistencia: document.getElementById('inpAssistencia').value,
-                data: document.getElementById('inpData').value,
-                nota: parseInt(document.getElementById('inpNota').value),
-                analista: document.getElementById('inpAnalista').value,
-                prestador: document.getElementById('inpPrestador').value,
-                fa: document.getElementById('inpFA').value,
-                status: document.getElementById('inpStatus').value,
-                motivo: document.getElementById('inpMotivo').value,
-                comentario: document.getElementById('inpComentario').value,
-                acaoRede: document.getElementById('inpAcao').value
-            };
-            closeModal('formModal');
-            if(id) await window.dbUpdate(id, rec); else await window.dbAdd(rec);
-            showToast("Salvo!");
-        }
-        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-        
-        function viewDetails(id) {
-            const i = npsData.find(d => d.firebaseId === id);
-            document.getElementById('detailsContent').innerHTML = `<p><strong>ID:</strong> ${i.assistencia}</p><p><strong>Comentário:</strong> ${i.comentario}</p>`;
-            document.getElementById('detailsModal').classList.remove('hidden');
-        }
-
-        function refreshKPIs() {
-            document.getElementById('kpi-total').textContent = npsData.length;
-            document.getElementById('kpi-procedente').textContent = npsData.filter(d=>d.status==='Procedente').length;
-            document.getElementById('kpi-risco').textContent = npsData.filter(d=>checkRisk(d.comentario)).length;
-            document.getElementById('kpi-acao-rede').textContent = npsData.filter(d=>d.acaoRede && d.acaoRede !== 'Nenhuma').length;
-        }
-
-        function refreshCharts() {
-            const m = {}; const a = {};
-            npsData.forEach(d => { m[d.motivo||'Outros'] = (m[d.motivo||'Outros']||0)+1; a[d.analista||'N/A'] = (a[d.analista||'N/A']||0)+1; });
-            drawChart('chartMotivos', 'bar', Object.keys(m), Object.values(m), (i)=> {activeChartFilter={type:'motivo',value:Object.keys(m)[i]}; refreshTable();});
-            drawChart('chartAnalistas', 'bar', Object.keys(a), Object.values(a), (i)=> {activeChartFilter={type:'analista',value:Object.keys(a)[i]}; refreshTable();});
-        }
-        function drawChart(id, t, l, d, cb) {
-            if(chartInstances[id]) chartInstances[id].destroy();
-            chartInstances[id] = new Chart(document.getElementById(id), {type:t, data:{labels:l,datasets:[{data:d, backgroundColor:'#6366f1'}]}, options:{plugins:{legend:{display:false}}, onClick:(e,el)=>{if(el.length)cb(el[0].index)}}});
-        }
-        function clearChartFilter() { activeChartFilter=null; refreshTable(); }
-        function clearFilters() { document.getElementById('searchInput').value=''; document.getElementById('filterStatus').value=''; clearChartFilter(); }
-        function loadMore() { visibleItems+=5; refreshTable(); }
-
-        // Cloud Import
-        function handleExcelUpload(e) {
-            const f = e.target.files[0]; if(!f)return;
-            const r = new FileReader();
-            r.onload = async function(e) {
-                const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
-                const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                let c=0;
-                for(let r of rows) {
-                    await window.dbAdd({assistencia:r.ID||r.Assistencia||"000", nota:r.Nota||0, status:r.Status||"Em Análise", comentario:r.Comentario||"", analista:currentAnalista});
-                    c++;
-                }
-                showToast(`${c} importados para nuvem!`);
-            };
-            r.readAsArrayBuffer(f);
-        }
-        
-        window.onclick = function(e) { if(e.target.classList.contains('fixed') && e.target.id !== 'loginModal') e.target.classList.add('hidden'); }
-    </script>
 </body>
 </html>
