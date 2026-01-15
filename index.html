@@ -23,12 +23,24 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Configuração Firebase (Automática do ambiente) ---
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+// --- SUA CONFIGURAÇÃO DO FIREBASE ---
+// Cole aqui o que você copiou do console do Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyCItfDagWuxFQnx036b7gIovTXABhbFmZQ",
+  authDomain: "comunidade-ferramentas.firebaseapp.com",
+  projectId: "comunidade-ferramentas",
+  storageBucket: "comunidade-ferramentas.firebasestorage.app",
+  messagingSenderId: "544906177736",
+  appId: "1:544906177736:web:332554f4c76d9bd65549fd",
+};
+
+// Inicialização
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// Defina um nome único para o seu app (para separar dados se tiver múltiplos dashboards)
+const appId = 'dashboard-nps-v1';        
         
         // Variáveis Globais de Estado
         let npsData = []; 
