@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Interativo NPS</title>
+    <title>Dashboard Inteligente NPS</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -39,6 +39,16 @@
             to { transform: translateX(0); opacity: 1; }
         }
         .toast-enter { animation: slideIn 0.4s ease-out forwards; }
+
+        /* Risk Pulse Animation */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+        }
+        .risk-badge {
+            animation: pulse-red 2s infinite;
+        }
     </style>
 </head>
 <body class="text-gray-800">
@@ -54,8 +64,8 @@
                     <i data-lucide="bar-chart-2" class="h-6 w-6 text-white"></i>
                 </div>
                 <div>
-                    <h1 class="text-lg font-bold tracking-wide">Painel de Tratativa NPS</h1>
-                    <p class="text-xs text-indigo-300">Gestão de Qualidade</p>
+                    <h1 class="text-lg font-bold tracking-wide">Painel de Inteligência NPS</h1>
+                    <p class="text-xs text-indigo-300">Gestão de Qualidade & Risco</p>
                 </div>
             </div>
             <div class="flex items-center space-x-3">
@@ -79,18 +89,18 @@
         
         <!-- Action Toolbar -->
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h2 class="text-xl font-bold text-gray-800">Visão Geral</h2>
+            <h2 class="text-xl font-bold text-gray-800">Visão Estratégica</h2>
             <div class="flex space-x-2 w-full md:w-auto">
-                <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden" onchange="handleExcelUpload(event)">
+                <input type="file" id="excelInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleExcelUpload(event)">
                 
                 <button onclick="document.getElementById('excelInput').click()" class="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium">
                     <i data-lucide="sheet" class="h-4 w-4"></i>
-                    <span>Importar Excel</span>
+                    <span>Importar</span>
                 </button>
                 
                 <button onclick="openFormModal()" class="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium">
                     <i data-lucide="plus" class="h-4 w-4"></i>
-                    <span>Novo Registro</span>
+                    <span>Novo</span>
                 </button>
             </div>
         </div>
@@ -112,13 +122,17 @@
                     <span class="text-xs font-medium text-red-400" id="kpi-procedente-pct">0%</span>
                 </div>
             </div>
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-green-500">
-                <p class="text-xs text-gray-500 font-bold uppercase">Improcedentes</p>
+            
+            <!-- Novo KPI de Risco -->
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-orange-500">
+                <p class="text-xs text-gray-500 font-bold uppercase">Casos Críticos (Risco)</p>
                 <div class="flex justify-between items-end mt-2">
-                    <h3 class="text-2xl font-bold text-green-600" id="kpi-improcedente">0</h3>
-                    <span class="text-xs font-medium text-green-400" id="kpi-improcedente-pct">0%</span>
+                    <h3 class="text-2xl font-bold text-orange-600" id="kpi-risco">0</h3>
+                    <i data-lucide="siren" class="h-5 w-5 text-orange-500 animate-pulse"></i>
                 </div>
+                <p class="text-[10px] text-gray-400 mt-1">Menções a Procon/Jurídico</p>
             </div>
+
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-yellow-500">
                 <p class="text-xs text-gray-500 font-bold uppercase">Ações na Rede</p>
                 <div class="flex justify-between items-end mt-2">
@@ -128,20 +142,46 @@
             </div>
         </div>
 
-        <!-- Charts -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div class="bg-white p-5 rounded-xl card-shadow">
-                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4">Motivos de Detração</h3>
-                <div class="chart-container">
+        <!-- Charts Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <!-- Chart 1: Motivos -->
+            <div class="bg-white p-5 rounded-xl card-shadow lg:col-span-1">
+                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4 flex justify-between items-center">
+                    Motivos (Clique para filtrar)
+                    <i data-lucide="mouse-pointer-click" class="h-4 w-4 text-gray-400"></i>
+                </h3>
+                <div class="chart-container" style="height: 250px;">
                     <canvas id="chartMotivos"></canvas>
                 </div>
             </div>
-            <div class="bg-white p-5 rounded-xl card-shadow">
-                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4">Performance por Analista</h3>
-                <div class="chart-container">
+            
+            <!-- Chart 2: Analistas -->
+            <div class="bg-white p-5 rounded-xl card-shadow lg:col-span-1">
+                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4 flex justify-between items-center">
+                    Analistas (Clique para filtrar)
+                    <i data-lucide="mouse-pointer-click" class="h-4 w-4 text-gray-400"></i>
+                </h3>
+                <div class="chart-container" style="height: 250px;">
                     <canvas id="chartAnalistas"></canvas>
                 </div>
             </div>
+
+            <!-- Chart 3: Tendência Temporal (Novo) -->
+            <div class="bg-white p-5 rounded-xl card-shadow lg:col-span-1">
+                <h3 class="text-sm font-bold uppercase text-gray-500 mb-4">Evolução Temporal</h3>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="chartTendencia"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Filter Indicator -->
+        <div id="activeFilterBanner" class="hidden bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-6 flex justify-between items-center animate-fade-in">
+            <div class="flex items-center gap-2">
+                <i data-lucide="filter" class="h-4 w-4 text-indigo-600"></i>
+                <span class="text-sm font-medium text-indigo-800">Filtro Ativo: <span id="activeFilterText" class="font-bold"></span></span>
+            </div>
+            <button onclick="clearChartFilter()" class="text-xs text-indigo-600 hover:text-indigo-900 underline font-medium">Limpar Filtro</button>
         </div>
 
         <!-- Data Table & Filters -->
@@ -150,8 +190,8 @@
             <div class="p-5 border-b border-gray-100 bg-gray-50">
                 <div class="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-4">
                     <h3 class="font-bold text-gray-700 flex items-center">
-                        <i data-lucide="filter" class="h-4 w-4 mr-2"></i>
-                        Filtros e Registros
+                        <i data-lucide="list" class="h-4 w-4 mr-2"></i>
+                        Registros Detalhados
                     </h3>
                 </div>
                 
@@ -160,7 +200,7 @@
                          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i data-lucide="search" class="h-4 w-4 text-gray-400"></i>
                         </div>
-                        <input type="text" id="searchInput" placeholder="Buscar geral..." 
+                        <input type="text" id="searchInput" placeholder="Buscar ID, Prestador, FA..." 
                             class="pl-10 w-full rounded-lg border-gray-300 border p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                     </div>
                     
@@ -170,6 +210,7 @@
                             <option value="Procedente">Procedente</option>
                             <option value="Improcedente">Improcedente</option>
                             <option value="Em Análise">Em Análise</option>
+                            <option value="RISCO">⚠️ Risco Crítico</option>
                         </select>
                     </div>
 
@@ -179,7 +220,7 @@
                     </div>
                     
                     <button onclick="clearFilters()" class="bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-lg px-4 py-2 text-sm transition-colors">
-                        Limpar Filtros
+                        Limpar Tudo
                     </button>
                 </div>
             </div>
@@ -295,6 +336,7 @@
                 <div>
                     <label class="block text-xs font-medium text-gray-700 mb-1">Comentário Técnico</label>
                     <textarea id="inpComentario" rows="3" class="w-full rounded-lg border-gray-300 border p-2 text-sm"></textarea>
+                    <p class="text-[10px] text-gray-400 mt-1">O sistema detectará automaticamente palavras de risco como "Procon" ou "Advogado".</p>
                 </div>
                 
                 <div>
@@ -312,11 +354,14 @@
 
     <!-- Scripts -->
     <script>
-        // Default Data (updated with FA codes)
+        // RISK KEYWORDS for Intelligent Analysis
+        const RISK_KEYWORDS = ['procon', 'advogado', 'justiça', 'processo', 'reclame aqui', 'mídia', 'rede social', 'ameaça', 'ouvidoria', 'susep', 'danos morais'];
+
+        // Default Data
         const defaultData = [
-            { assistencia: "9152596", fa: "FA10526", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "PR", cidade: "Curitiba", prestador: "GPRAG CONTROLE", motivo: "Visita não realizada", analista: "Rebecca", status: "Procedente", comentario: "Prestador não compareceu.", acaoRede: "Desligamento" },
+            { assistencia: "9152596", fa: "FA10526", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "PR", cidade: "Curitiba", prestador: "GPRAG CONTROLE", motivo: "Visita não realizada", analista: "Rebecca", status: "Procedente", comentario: "Prestador não compareceu e cliente ameaçou ir ao PROCON caso não resolva.", acaoRede: "Desligamento" },
             { assistencia: "9098378", fa: "FA13308", data: "02/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "PR", cidade: "Curitiba", prestador: "TOP SERVICE", motivo: "Danos", analista: "Jonathan", status: "Improcedente", comentario: "TV já estava danificada.", acaoRede: "Nenhuma" },
-            { assistencia: "9167619", fa: "FA7287", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "HDI", uf: "MG", cidade: "BH", prestador: "HMS ASSISTENCIA", motivo: "Cobertura", analista: "Rebecca", status: "Procedente", comentario: "Erro de cobertura.", acaoRede: "Nenhuma" },
+            { assistencia: "9167619", fa: "FA7287", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "HDI", uf: "MG", cidade: "BH", prestador: "HMS ASSISTENCIA", motivo: "Cobertura", analista: "Rebecca", status: "Procedente", comentario: "Erro de cobertura. Segurado mencionou advogado.", acaoRede: "Nenhuma" },
             { assistencia: "9145640", fa: "FA13021", data: "06/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "RJ", cidade: "Rio", prestador: "MARANATA", motivo: "Falha operacional", analista: "Rebecca", status: "Procedente", comentario: "Falha operacional grave.", acaoRede: "Nenhuma" },
             { assistencia: "9178103", fa: "FA9068", data: "08/01/2026", nota: 0, categoria: "Detrator", cliente: "YELUM", uf: "SP", cidade: "SJC", prestador: "CASA DA CHAVE", motivo: "Não houve falha", analista: "Rebecca", status: "Improcedente", comentario: "Cliente reclamou da assistência errada.", acaoRede: "Nenhuma" },
             { assistencia: "9188888", fa: "FA0000", data: "09/01/2026", nota: 1, categoria: "Detrator", cliente: "ALLIANZ", uf: "SP", cidade: "São Paulo", prestador: "GUINCHO RÁPIDO", motivo: "Atraso", analista: "Marcos", status: "Procedente", comentario: "Demora de 120 min.", acaoRede: "Advertência" }
@@ -325,16 +370,19 @@
         let npsData = [];
         let visibleItems = 5;
         let chartInstances = {};
+        let activeChartFilter = null; // Stores currently active filter from charts
         
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
-            loadData(); // Load from LocalStorage or Default
+            loadData(); 
             
-            // Add listeners to filters
+            // Listeners
             ['searchInput', 'filterStatus', 'filterDateStart', 'filterDateEnd'].forEach(id => {
                 document.getElementById(id).addEventListener('input', () => {
                     visibleItems = 5;
+                    activeChartFilter = null; // Manual filter overrides chart filter
+                    document.getElementById('activeFilterBanner').classList.add('hidden');
                     refreshTable();
                 });
             });
@@ -361,12 +409,19 @@
         }
 
         function resetData() {
-            if(confirm("Deseja apagar todos os dados e restaurar o padrão?")) {
+            if(confirm("Deseja restaurar o padrão?")) {
                 localStorage.removeItem('dashboardNPS_data');
                 npsData = [...defaultData];
                 refreshDashboard();
-                showToast('Dados resetados para o padrão.', 'warning');
+                showToast('Dados resetados.', 'warning');
             }
+        }
+
+        // --- Intelligence Logic ---
+        function checkRisk(text) {
+            if (!text) return false;
+            const lower = text.toLowerCase();
+            return RISK_KEYWORDS.some(keyword => lower.includes(keyword));
         }
 
         // --- Core Functions ---
@@ -378,32 +433,33 @@
         }
 
         function refreshKPIs() {
-            
             const total = npsData.length;
             const procedente = npsData.filter(d => d.status.toLowerCase() === 'procedente').length;
-            const improcedente = npsData.filter(d => d.status.toLowerCase() === 'improcedente').length;
-            const acaoRede = npsData.filter(d => (d.acaoRede || '').toLowerCase().includes('desligamento') || (d.acaoRede || '').toLowerCase().includes('advertência')).length;
-
+            
+            // Count Risk
+            const riskCount = npsData.filter(d => checkRisk(d.comentario)).length;
+            
             updateNumber('kpi-total', total);
             updateNumber('kpi-procedente', procedente);
-            updateNumber('kpi-improcedente', improcedente);
-            updateNumber('kpi-acao-rede', acaoRede);
-
+            updateNumber('kpi-risco', riskCount);
+            
             document.getElementById('kpi-procedente-pct').textContent = total ? Math.round((procedente/total)*100) + '%' : '0%';
-            document.getElementById('kpi-improcedente-pct').textContent = total ? Math.round((improcedente/total)*100) + '%' : '0%';
         }
 
-        // Helper to parse DD/MM/YYYY to Date object
         function parseDate(dateStr) {
             if(!dateStr) return null;
-            const parts = dateStr.split('/');
-            if (parts.length === 3) {
-                return new Date(parts[2], parts[1] - 1, parts[0]);
+            // Handle string date format DD/MM/YYYY
+            if (typeof dateStr === 'string' && dateStr.includes('/')) {
+                const parts = dateStr.split('/');
+                if (parts.length === 3) {
+                    return new Date(parts[2], parts[1] - 1, parts[0]);
+                }
             }
             return null;
         }
 
         function getFilteredData() {
+            // 1. Base inputs
             const term = document.getElementById('searchInput').value.toLowerCase();
             const statusFilter = document.getElementById('filterStatus').value;
             const dateStart = document.getElementById('filterDateStart').valueAsDate;
@@ -416,8 +472,13 @@
                                     (item.prestador || '').toLowerCase().includes(term) ||
                                     (item.fa || '').toLowerCase().includes(term);
 
-                // Status Filter
-                const matchesStatus = statusFilter === "" || item.status === statusFilter;
+                // Status Filter (includes Risk Logic)
+                let matchesStatus = true;
+                if (statusFilter === 'RISCO') {
+                    matchesStatus = checkRisk(item.comentario);
+                } else if (statusFilter !== "") {
+                    matchesStatus = item.status === statusFilter;
+                }
 
                 // Date Filter
                 let matchesDate = true;
@@ -429,7 +490,17 @@
                     }
                 }
 
-                return matchesText && matchesStatus && matchesDate;
+                // Chart Interaction Filter (Drill-down)
+                let matchesChart = true;
+                if (activeChartFilter) {
+                    if (activeChartFilter.type === 'analista') {
+                        matchesChart = item.analista === activeChartFilter.value;
+                    } else if (activeChartFilter.type === 'motivo') {
+                        matchesChart = item.motivo === activeChartFilter.value;
+                    }
+                }
+
+                return matchesText && matchesStatus && matchesDate && matchesChart;
             });
         }
 
@@ -442,22 +513,28 @@
 
             toShow.forEach((row) => {
                 const realIndex = npsData.indexOf(row);
+                const isRisk = checkRisk(row.comentario);
                 
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-indigo-50/50 transition-colors border-b border-gray-100 last:border-0 fade-in";
+                tr.className = `hover:bg-indigo-50/50 transition-colors border-b border-gray-100 last:border-0 fade-in ${isRisk ? 'bg-red-50' : ''}`;
                 
                 let statusBadge = "bg-gray-100 text-gray-800";
                 if(row.status === 'Procedente') statusBadge = "bg-red-100 text-red-800 border border-red-200";
                 if(row.status === 'Improcedente') statusBadge = "bg-green-100 text-green-800 border border-green-200";
 
-                // Format FA
                 const faDisplay = row.fa ? `<span class="font-mono font-bold text-indigo-700 mr-1 bg-indigo-50 px-1 rounded border border-indigo-100">${row.fa}</span>` : '';
 
+                // Risk Badge HTML
+                const riskBadge = isRisk ? `<span class="risk-badge ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white uppercase tracking-wider">RISCO</span>` : '';
+
                 tr.innerHTML = `
-                    <td class="p-4 font-bold text-indigo-900">#${row.assistencia}</td>
+                    <td class="p-4 font-bold text-indigo-900">
+                        #${row.assistencia}
+                        ${riskBadge}
+                    </td>
                     <td class="p-4 text-gray-500">${row.data || '-'}</td>
                     <td class="p-4">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${row.nota < 7 ? 'bg-red-50 text-red-600' : (row.nota >= 9 ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600')}">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${row.nota < 7 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">
                             ${row.nota}
                         </span>
                     </td>
@@ -473,9 +550,9 @@
                     </td>
                     <td class="p-4 text-right">
                         <div class="flex justify-end gap-1">
-                            <button onclick="viewDetails(${realIndex})" class="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-white rounded-md transition-colors" title="Ver"><i data-lucide="eye" class="h-4 w-4"></i></button>
-                            <button onclick="editRecord(${realIndex})" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded-md transition-colors" title="Editar"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
-                            <button onclick="deleteRecord(${realIndex})" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-white rounded-md transition-colors" title="Excluir"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                            <button onclick="viewDetails(${realIndex})" class="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-white rounded-md transition-colors"><i data-lucide="eye" class="h-4 w-4"></i></button>
+                            <button onclick="editRecord(${realIndex})" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded-md transition-colors"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
+                            <button onclick="deleteRecord(${realIndex})" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-white rounded-md transition-colors"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
                         </div>
                     </td>
                 `;
@@ -483,43 +560,63 @@
             });
 
             lucide.createIcons();
-
-            // Footer Logic
             document.getElementById('showingCount').textContent = `Mostrando ${toShow.length} de ${filtered.length} registros`;
-            const btn = document.getElementById('loadMoreBtn');
-            if (visibleItems < filtered.length) {
-                btn.classList.remove('hidden');
-            } else {
-                btn.classList.add('hidden');
-            }
+            
+            // Toggle Load More
+            document.getElementById('loadMoreBtn').classList.toggle('hidden', visibleItems >= filtered.length);
+        }
+
+        // --- Charts with Drill-down ---
+        function applyChartFilter(type, value) {
+            activeChartFilter = { type, value };
+            document.getElementById('activeFilterBanner').classList.remove('hidden');
+            document.getElementById('activeFilterText').textContent = `${type.toUpperCase()}: "${value}"`;
+            refreshTable();
+            showToast(`Filtrando por ${value}`, 'info');
+        }
+
+        function clearChartFilter() {
+            activeChartFilter = null;
+            document.getElementById('activeFilterBanner').classList.add('hidden');
+            refreshTable();
         }
 
         function refreshCharts() {
-            // Data Prep
             const motivosCount = {};
-            const analistasMap = {}; 
+            const analistasMap = {};
+            const dateMap = {}; // "YYYY-MM-DD" -> count
 
             npsData.forEach(d => {
                 // Motivos
-                const m = d.motivo || "Não informado";
+                const m = d.motivo || "Outros";
                 motivosCount[m] = (motivosCount[m] || 0) + 1;
 
                 // Analistas
-                const a = d.analista || "Desconhecido";
+                const a = d.analista || "N/A";
                 if (!analistasMap[a]) analistasMap[a] = { Proc: 0, Impr: 0 };
                 if (d.status === 'Procedente') analistasMap[a].Proc++;
                 if (d.status === 'Improcedente') analistasMap[a].Impr++;
+
+                // Dates for Trend Line
+                const dateObj = parseDate(d.data);
+                if(dateObj) {
+                    // Sortable Key: YYYY-MM-DD
+                    const key = dateObj.toISOString().split('T')[0];
+                    dateMap[key] = (dateMap[key] || 0) + 1;
+                }
             });
 
-            // Destroy old charts
+            // Destroy old
             if (chartInstances.motivos) chartInstances.motivos.destroy();
             if (chartInstances.analistas) chartInstances.analistas.destroy();
+            if (chartInstances.tendencia) chartInstances.tendencia.destroy();
 
-            // Chart 1: Motivos
+            // 1. Motivos Chart
+            const motivosLabels = Object.keys(motivosCount);
             chartInstances.motivos = new Chart(document.getElementById('chartMotivos'), {
                 type: 'bar',
                 data: {
-                    labels: Object.keys(motivosCount),
+                    labels: motivosLabels,
                     datasets: [{
                         label: 'Ocorrências',
                         data: Object.values(motivosCount),
@@ -531,58 +628,87 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } }
+                    scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const label = motivosLabels[elements[0].index];
+                            applyChartFilter('motivo', label);
+                        }
+                    }
                 }
             });
 
-            // Chart 2: Analistas
-            const labels = Object.keys(analistasMap);
+            // 2. Analistas Chart
+            const analistaLabels = Object.keys(analistasMap);
             chartInstances.analistas = new Chart(document.getElementById('chartAnalistas'), {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels: analistaLabels,
                     datasets: [
-                        { label: 'Procedente', data: labels.map(l => analistasMap[l].Proc), backgroundColor: '#ef4444', borderRadius: 4 },
-                        { label: 'Improcedente', data: labels.map(l => analistasMap[l].Impr), backgroundColor: '#22c55e', borderRadius: 4 }
+                        { label: 'Procedente', data: analistaLabels.map(l => analistasMap[l].Proc), backgroundColor: '#ef4444', borderRadius: 4 },
+                        { label: 'Improcedente', data: analistaLabels.map(l => analistasMap[l].Impr), backgroundColor: '#22c55e', borderRadius: 4 }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { position: 'bottom' } },
-                    scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } }
+                    scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const label = analistaLabels[elements[0].index];
+                            applyChartFilter('analista', label);
+                        }
+                    }
+                }
+            });
+
+            // 3. Trend Line Chart
+            const sortedDates = Object.keys(dateMap).sort();
+            const dateLabels = sortedDates.map(d => d.split('-').reverse().slice(0, 2).join('/')); 
+            const dateValues = sortedDates.map(d => dateMap[d]);
+
+            chartInstances.tendencia = new Chart(document.getElementById('chartTendencia'), {
+                type: 'line',
+                data: {
+                    labels: dateLabels,
+                    datasets: [{
+                        label: 'Total de Reclamações',
+                        data: dateValues,
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } }
                 }
             });
         }
 
         // --- Interaction Functions ---
-
-        function loadMore() {
-            visibleItems += 5;
-            refreshTable();
-        }
-
-        function updateNumber(id, newValue) {
-            document.getElementById(id).textContent = newValue;
-        }
-
+        function loadMore() { visibleItems += 5; refreshTable(); }
+        function updateNumber(id, v) { document.getElementById(id).textContent = v; }
         function clearFilters() {
             document.getElementById('searchInput').value = '';
             document.getElementById('filterStatus').value = '';
             document.getElementById('filterDateStart').value = '';
             document.getElementById('filterDateEnd').value = '';
-            visibleItems = 5;
-            refreshTable();
+            clearChartFilter(); // also resets table
             showToast("Filtros limpos", "info");
         }
 
-        // --- CRUD Operations ---
-
+        // --- CRUD (Standard) ---
         function openFormModal(index = -1) {
             const modal = document.getElementById('formModal');
             const title = document.getElementById('formModalTitle');
             const form = document.getElementById('recordForm');
-            
             form.reset();
             document.getElementById('editIndex').value = index;
 
@@ -602,13 +728,11 @@
             } else {
                 title.textContent = "Novo Registro";
             }
-
             modal.classList.remove('hidden');
         }
 
         function handleFormSubmit(e) {
             e.preventDefault();
-            
             const index = parseInt(document.getElementById('editIndex').value);
             const nota = parseInt(document.getElementById('inpNota').value);
             
@@ -624,7 +748,7 @@
                 motivo: document.getElementById('inpMotivo').value,
                 comentario: document.getElementById('inpComentario').value,
                 acaoRede: document.getElementById('inpAcao').value,
-                // Default filler for new items
+                // defaults
                 cliente: index >= 0 ? npsData[index].cliente : "Não Informado",
                 uf: index >= 0 ? npsData[index].uf : "-",
                 cidade: index >= 0 ? npsData[index].cidade : "-"
@@ -632,35 +756,40 @@
 
             if (index >= 0) {
                 npsData[index] = { ...npsData[index], ...newData };
-                showToast("Registro atualizado com sucesso!", "success");
+                showToast("Registro atualizado!", "success");
             } else {
                 npsData.unshift(newData);
-                showToast("Novo registro adicionado!", "success");
+                showToast("Novo registro!", "success");
             }
-
             saveData();
             closeModal('formModal');
             refreshDashboard();
         }
 
-        function editRecord(index) {
-            openFormModal(index);
-        }
-
+        function editRecord(index) { openFormModal(index); }
         function deleteRecord(index) {
-            if(confirm('Tem certeza que deseja excluir este registro?')) {
+            if(confirm('Tem certeza?')) {
                 npsData.splice(index, 1);
                 saveData();
                 refreshDashboard();
-                showToast("Registro excluído.", "warning");
+                showToast("Excluído.", "warning");
             }
         }
 
         function viewDetails(index) {
             const item = npsData[index];
             const content = document.getElementById('detailsContent');
+            const isRisk = checkRisk(item.comentario);
             
             let html = `<div class="grid grid-cols-2 gap-4 mb-4">`;
+            // Add Risk Banner in Modal
+            if (isRisk) {
+                html = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 mb-4 rounded flex items-center gap-2">
+                    <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+                    <p class="font-bold text-sm">ATENÇÃO: Este caso possui palavras-chave de risco crítico.</p>
+                </div>` + html;
+            }
+
             for (const [key, value] of Object.entries(item)) {
                 if(key !== 'comentario' && key !== 'nota') {
                      html += `<div><p class="text-xs text-gray-400 uppercase font-bold">${key}</p><p class="text-sm font-medium">${value}</p></div>`;
@@ -671,121 +800,125 @@
             
             content.innerHTML = html;
             document.getElementById('detailsModal').classList.remove('hidden');
+            lucide.createIcons(); // refresh icons in modal
         }
 
-        function closeModal(id) {
-            document.getElementById(id).classList.add('hidden');
-        }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-        // --- UI Utilities (Toasts) ---
+        // --- Utilities ---
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            
             let colors = "bg-gray-800 border-gray-700";
             if(type === 'success') colors = "bg-green-600 border-green-500";
             if(type === 'warning') colors = "bg-red-500 border-red-400";
             if(type === 'info') colors = "bg-indigo-600 border-indigo-500";
 
             toast.className = `p-4 rounded-lg shadow-xl text-white text-sm font-medium flex items-center justify-between min-w-[300px] border-l-4 toast-enter ${colors}`;
-            toast.innerHTML = `
-                <span>${message}</span>
-                <button onclick="this.parentElement.remove()" class="ml-4 hover:text-gray-200"><i data-lucide="x" class="h-4 w-4"></i></button>
-            `;
-            
+            toast.innerHTML = `<span>${message}</span>`;
             container.appendChild(toast);
-            lucide.createIcons();
-
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateY(-10px)';
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            setTimeout(() => { toast.remove(); }, 3000);
         }
 
-        // --- Excel Import ---
+        // --- Helper Function to Find Columns Case-Insensitively ---
+        function findValue(row, possibleKeys) {
+            const rowKeys = Object.keys(row);
+            // 1. Exact match first
+            for (const key of possibleKeys) {
+                if (row[key] !== undefined) return row[key];
+            }
+            // 2. Case insensitive fuzzy match
+            for (const key of possibleKeys) {
+                const found = rowKeys.find(k => k.toLowerCase().trim() === key.toLowerCase().trim());
+                if (found) return row[found];
+            }
+            return null;
+        }
+
+        // --- Excel Date Converter ---
+        function excelDateToJSDate(serial) {
+            if (!serial || isNaN(serial)) return null;
+            // Excel counts days from Dec 30, 1899
+            const utc_days  = Math.floor(serial - 25569);
+            const utc_value = utc_days * 86400;                                      
+            const date_info = new Date(utc_value * 1000);
+
+            // Format as DD/MM/YYYY
+            const day = String(date_info.getDate() + 1).padStart(2, '0'); // +1 because of timezone quirks often
+            const month = String(date_info.getMonth() + 1).padStart(2, '0');
+            const year = date_info.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        // --- Robust Excel Import ---
         function handleExcelUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const sheetName = workbook.SheetNames[0];
-                const sheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(sheet);
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheetName = workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(sheet);
 
-                if (json.length > 0) {
-                    const imported = json.map(row => ({
-                        assistencia: row['Assistencia'] || row['ID'] || row['assistencia'] || "000000",
-                        data: row['Data'] || row['data'] || "-",
-                        nota: row['Nota'] || row['NPS'] || 0,
-                        analista: row['Analista'] || "Importado",
-                        prestador: row['Prestador'] || row['Nome Fantasia'] || "Desconhecido",
-                        fa: row['FA'] || row['CodPrestador'] || row['Codigo'] || "",
-                        status: row['Status'] || "Em Análise",
-                        motivo: row['Motivo'] || "Não classificado",
-                        comentario: row['Comentário'] || row['Obs'] || "",
-                        acaoRede: row['Ação Rede'] || "Nenhuma",
-                        cliente: row['Cliente'] || "-",
-                        uf: row['UF'] || "-"
-                    }));
+                    if (json.length > 0) {
+                        const imported = json.map(row => {
+                            // Helper to get raw date
+                            let rawDate = findValue(row, ['Data', 'Data Abertura', 'Data Evento', 'dt']);
+                            // Check if it's an Excel serial number
+                            if (typeof rawDate === 'number' && rawDate > 20000) {
+                                rawDate = excelDateToJSDate(rawDate);
+                            }
 
-                    npsData = [...npsData, ...imported];
-                    saveData();
-                    refreshDashboard();
-                    showToast(`${imported.length} registros importados!`, 'success');
+                            return {
+                                assistencia: findValue(row, ['Assistencia', 'ID', 'Assistência', 'Numero', 'Ticket']) || "000000",
+                                data: rawDate || "-",
+                                nota: findValue(row, ['Nota', 'NPS', 'Nota NPS', 'Score']) || 0,
+                                analista: findValue(row, ['Analista', 'Responsavel', 'Quem Tratou']) || "Importado",
+                                prestador: findValue(row, ['Prestador', 'Nome Fantasia', 'Fornecedor']) || "Desconhecido",
+                                fa: findValue(row, ['FA', 'CodPrestador', 'Codigo', 'Cód FA']) || "",
+                                status: findValue(row, ['Status', 'Situação']) || "Em Análise",
+                                motivo: findValue(row, ['Motivo', 'Motivo Detração', 'Causa Raiz']) || "Não classificado",
+                                comentario: findValue(row, ['Comentário', 'Obs', 'Observação', 'Analise', 'Comentario Tecnico']) || "",
+                                acaoRede: findValue(row, ['Ação Rede', 'Ação', 'Medida', 'Acao']) || "Nenhuma",
+                                cliente: findValue(row, ['Cliente', 'Seguradora']) || "-",
+                                uf: findValue(row, ['UF', 'Estado']) || "-"
+                            };
+                        });
+
+                        npsData = [...npsData, ...imported];
+                        saveData();
+                        refreshDashboard();
+                        showToast(`${imported.length} registros importados com sucesso!`, 'success');
+                    } else {
+                        showToast("O arquivo parece estar vazio ou em formato inválido.", "warning");
+                    }
+                } catch (error) {
+                    console.error(error);
+                    showToast("Erro ao ler o arquivo Excel.", "warning");
                 }
             };
             reader.readAsArrayBuffer(file);
-            e.target.value = '';
+            e.target.value = ''; // Reset input to allow same file selection again
         }
 
-        // --- Export Excel ---
         function exportToExcel() {
             const friendlyData = npsData.map(row => ({
-                "ID Assistência": row.assistencia,
-                "Data Evento": row.data,
-                "Nota NPS": row.nota,
-                "Categoria": row.categoria || (row.nota <=6 ? 'Detrator' : 'Promotor'),
-                "Analista": row.analista,
-                "Cód. FA": row.fa,
-                "Prestador": row.prestador,
-                "Status Tratativa": row.status,
-                "Motivo Detração": row.motivo,
-                "Ação na Rede": row.acaoRede,
-                "Comentário Técnico": row.comentario
+                "ID": row.assistencia, "Data": row.data, "Nota": row.nota,
+                "Analista": row.analista, "FA": row.fa, "Prestador": row.prestador,
+                "Status": row.status, "Motivo": row.motivo, "Ação": row.acaoRede, "Comentário": row.comentario
             }));
-
             const ws = XLSX.utils.json_to_sheet(friendlyData);
-
-            const wscols = [
-                {wch: 15}, // ID
-                {wch: 12}, // Data
-                {wch: 8},  // Nota
-                {wch: 12}, // Categoria
-                {wch: 20}, // Analista
-                {wch: 12}, // FA
-                {wch: 30}, // Prestador
-                {wch: 15}, // Status
-                {wch: 25}, // Motivo
-                {wch: 15}, // Ação
-                {wch: 50}  // Comentário
-            ];
-            ws['!cols'] = wscols;
-
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Base NPS");
-
-            XLSX.writeFile(wb, "Base_NPS_Tratada.xlsx");
-            showToast("Download da planilha iniciado!", "success");
+            XLSX.writeFile(wb, "NPS_Inteligente.xlsx");
         }
-
+        
         window.onclick = function(event) {
-            if (event.target.classList.contains('fixed')) {
-                event.target.classList.add('hidden');
-            }
+            if (event.target.classList.contains('fixed')) event.target.classList.add('hidden');
         }
     </script>
 </body>
