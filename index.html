@@ -262,6 +262,7 @@
                     </td>
                     <td class="p-4 text-gray-500 text-xs truncate max-w-[100px]">${row.tipoServico || '-'}</td>
                     <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-medium border ${statusClass}">${row.status}</span></td>
+                    <td class="p-4 text-gray-600 text-xs truncate max-w-[120px]" title="${row.analista}">${row.analista || '-'}</td>
                     <td class="p-4 text-right">
                         <div class="flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                             <button onclick="window.viewDetails('${row.firebaseId}')" class="p-1 hover:text-indigo-600"><i data-lucide="eye" class="h-4 w-4"></i></button>
@@ -734,7 +735,7 @@
                 <div id="loadingIndicator" class="absolute inset-0 bg-white/90 z-20 flex flex-col items-center justify-center font-bold text-gray-500"><i data-lucide="loader-2" class="animate-spin h-8 w-8 mb-2 text-indigo-600"></i><span>Sincronizando...</span></div>
                 <table class="w-full text-left border-collapse">
                     <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold sticky top-0 z-10 shadow-sm">
-                        <tr><th class="p-4 w-10 text-center"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('assistencia')">ID <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('data')">Data <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4">Nota</th><th class="p-4">Local</th><th class="p-4">FA / Prestador</th><th class="p-4">Serviço</th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('status')">Status <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4 text-right">Ações</th></tr>
+                        <tr><th class="p-4 w-10 text-center"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('assistencia')">ID <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('data')">Data <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4">Nota</th><th class="p-4">Local</th><th class="p-4">FA / Prestador</th><th class="p-4">Serviço</th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('status')">Status <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('analista')">Analista <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4 text-right">Ações</th></tr>
                     </thead>
                     <tbody id="tableBody" class="text-sm divide-y divide-gray-100 bg-white"></tbody>
                 </table>
