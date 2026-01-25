@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 4.1 - Gestão Avançada</title>
+    <title>Dashboard NPS 4.2 - Inteligência de Dados</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -36,12 +36,12 @@
         .sort-icon { display: inline-block; width: 12px; margin-left: 4px; opacity: 0.5; }
         th:hover .sort-icon { opacity: 1; }
         
-        /* Product Selection Styles - Refinado (Versão 4.1) */
+        /* Product Selection Styles */
         .btn-prod { 
             transition: all 0.2s; 
             border: 1px solid #e5e7eb; 
             opacity: 0.7; 
-            font-size: 0.75rem; /* Text menor */
+            font-size: 0.75rem; 
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
@@ -53,16 +53,12 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         
-        .btn-hdi.selected { 
-            background-color: #dcfce7; /* Verde bem claro */
-            color: #166534; 
-            border-color: #86efac;
-        }
-        .btn-yelum.selected { 
-            background-color: #fef9c3; /* Amarelo bem claro */
-            color: #854d0e; 
-            border-color: #fde047;
-        }
+        .btn-hdi.selected { background-color: #dcfce7; color: #166534; border-color: #86efac; }
+        .btn-yelum.selected { background-color: #fef9c3; color: #854d0e; border-color: #fde047; }
+
+        /* Insights Bar Animation */
+        .insight-item { transition: all 0.3s ease; }
+        .insight-item:hover { transform: translateY(-2px); }
 
         /* Login Background Animation */
         @keyframes gradient-xy {
@@ -193,6 +189,7 @@
         // --- Dashboard UI ---
         function refreshDashboard() {
             refreshKPIs();
+            generateSmartInsights(); // Nova Função de Inteligência
             refreshTable();
             refreshCharts();
         }
@@ -200,13 +197,11 @@
         function refreshKPIs() {
             const total = npsData.length;
             const procedentes = npsData.filter(d => d.status === 'Procedente').length;
-            const neutras = npsData.filter(d => d.status === 'Neutra').length; 
             const rede = npsData.filter(d => d.acaoRede && d.acaoRede !== 'Nenhuma').length;
             const prom = npsData.filter(d => d.nota >= 9).length;
             const det = npsData.filter(d => d.nota <= 6).length;
             const npsScore = total > 0 ? Math.round(((prom - det) / total) * 100) : 0;
 
-            // Calcular Base Mais Ofensora
             const offenderMap = {};
             npsData.filter(d => d.status === 'Procedente').forEach(d => {
                 const n = d.prestador || 'N/D';
@@ -219,17 +214,64 @@
             document.getElementById('kpi-total').textContent = total;
             document.getElementById('kpi-procedente').textContent = procedentes;
             document.getElementById('kpi-procedente-pct').textContent = total ? Math.round((procedentes/total)*100) + '%' : '0%';
-            // Removido KPI Ações e NPS Real conforme solicitado na v4.1
             
-            // Atualizar novo KPI
             document.getElementById('kpi-offender-name').textContent = topOffenderName;
             document.getElementById('kpi-offender-count').textContent = topOffenderCount > 0 ? `${topOffenderCount} casos` : 'Sem dados';
+        }
+
+        // --- INTELLIGENT INSIGHTS (NOVA FUNCIONALIDADE) ---
+        function generateSmartInsights() {
+            const container = document.getElementById('smartInsightsContainer');
+            if(!container) return;
+            
+            if(npsData.length === 0) {
+                container.innerHTML = '<div class="text-gray-400 text-sm italic">Aguardando dados para gerar insights...</div>';
+                return;
+            }
+
+            let insights = [];
+
+            // Insight 1: Cidade Crítica
+            const cityMap = {};
+            npsData.forEach(d => { if(d.cidade) { if(!cityMap[d.cidade]) cityMap[d.cidade] = {sum:0, count:0}; cityMap[d.cidade].sum += Number(d.nota||0); cityMap[d.cidade].count++; }});
+            let worstCity = {name:'', avg: 11};
+            Object.entries(cityMap).forEach(([name, data]) => {
+                if(data.count >= 2) { // Minimo 2 registros
+                    const avg = data.sum / data.count;
+                    if(avg < worstCity.avg) worstCity = {name, avg};
+                }
+            });
+            if(worstCity.name) insights.push({icon: 'map-pin', color: 'red', text: `<strong>${worstCity.name}</strong> tem a menor média de nota (${worstCity.avg.toFixed(1)}).`});
+
+            // Insight 2: Motivo Recorrente
+            const motivoMap = {};
+            npsData.filter(d => d.nota <= 6).forEach(d => { const m = d.motivo || 'N/D'; motivoMap[m] = (motivoMap[m]||0)+1; });
+            const topMotivo = Object.entries(motivoMap).sort((a,b)=>b[1]-a[1])[0];
+            if(topMotivo) insights.push({icon: 'alert-circle', color: 'orange', text: `<strong>${topMotivo[0]}</strong> é o principal motivo de notas baixas (${topMotivo[1]}x).`});
+
+            // Insight 3: Destaque Positivo
+            const topPromoter = npsData.filter(d => d.nota >= 9).length;
+            if(topPromoter > 0) insights.push({icon: 'thumbs-up', color: 'green', text: `Temos <strong>${topPromoter}</strong> Promotores na base atual.`});
+
+            // Render
+            let html = '<div class="flex flex-col md:flex-row gap-4 w-full">';
+            insights.forEach(i => {
+                html += `
+                    <div class="insight-item flex-1 bg-white border-l-4 border-${i.color}-500 p-3 rounded shadow-sm flex items-center gap-3">
+                        <div class="bg-${i.color}-50 p-2 rounded-full text-${i.color}-600"><i data-lucide="${i.icon}" class="w-4 h-4"></i></div>
+                        <p class="text-sm text-gray-700">${i.text}</p>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+            lucide.createIcons();
         }
 
         function getFilteredData() {
             const term = document.getElementById('searchInput').value.toLowerCase();
             const status = document.getElementById('filterStatus').value;
-            const notaFilter = document.getElementById('filterNota').value; // Novo Filtro
+            const notaFilter = document.getElementById('filterNota').value;
             const start = document.getElementById('filterDateStart').valueAsDate;
             const end = document.getElementById('filterDateEnd').valueAsDate;
 
@@ -240,9 +282,7 @@
                 if(status) statusMatch = i.status === status;
                 
                 let notaMatch = true;
-                if(notaFilter !== "") {
-                    notaMatch = i.nota == notaFilter;
-                }
+                if(notaFilter !== "") notaMatch = i.nota == notaFilter;
 
                 let dateMatch = true;
                 if (start || end) {
@@ -259,6 +299,14 @@
                 return textMatch && statusMatch && notaMatch && dateMatch && chartMatch;
             });
         }
+
+        // Função Ferramenta: Copiar Resumo
+        window.copySummary = function(id) {
+            const d = npsData.find(i => i.firebaseId === id);
+            if(!d) return;
+            const text = `*Resumo NPS #${d.assistencia}*\nPrestador: ${d.prestador}\nNota: ${d.nota}\nStatus: ${d.status}\nMotivo: ${d.motivo}\nAnalista: ${d.analista}\n\nObs: ${d.comentario}`;
+            navigator.clipboard.writeText(text).then(() => showToast("Resumo copiado!", "success"));
+        };
 
         function refreshTable() {
             const filtered = getFilteredData();
@@ -303,6 +351,7 @@
                     <td class="p-4 text-gray-600 text-xs truncate max-w-[120px]" title="${row.analista}">${row.analista || '-'}</td>
                     <td class="p-4 text-right">
                         <div class="flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                            <button onclick="window.copySummary('${row.firebaseId}')" class="p-1 hover:text-green-600" title="Copiar Resumo"><i data-lucide="clipboard-copy" class="h-4 w-4"></i></button>
                             <button onclick="window.viewDetails('${row.firebaseId}')" class="p-1 hover:text-indigo-600"><i data-lucide="eye" class="h-4 w-4"></i></button>
                             <button onclick="window.openFormModal('${row.firebaseId}')" class="p-1 hover:text-blue-600"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
                             <button onclick="window.confirmSingleDelete('${row.firebaseId}')" class="p-1 hover:text-red-600"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
@@ -314,34 +363,59 @@
             lucide.createIcons();
         }
 
-        // --- Gráficos (Bases Ofensoras - Procedentes) ---
+        // --- Gráficos (Otimizado: Top 5 + Outros) ---
         function refreshCharts() {
             const m = {}; const p = {};
             
-            // Motivos (Geral)
-            npsData.forEach(d => { 
-                m[d.motivo||'Outros'] = (m[d.motivo||'Outros']||0)+1;
+            npsData.forEach(d => { m[d.motivo||'Outros'] = (m[d.motivo||'Outros']||0)+1; });
+
+            // Lógica Inteligente para Motivos (Pareto: Top 5 + Outros)
+            const sortedMotivos = Object.entries(m).sort((a,b) => b[1] - a[1]);
+            let finalMotivosLabels = [];
+            let finalMotivosData = [];
+            
+            // Pega os Top 5
+            const top5 = sortedMotivos.slice(0, 5);
+            top5.forEach(item => {
+                finalMotivosLabels.push(item[0]);
+                finalMotivosData.push(item[1]);
             });
 
-            // Bases Ofensoras (Apenas Status Procedente)
+            // Agrupa o restante em "Outros"
+            if (sortedMotivos.length > 5) {
+                const outrosCount = sortedMotivos.slice(5).reduce((acc, curr) => acc + curr[1], 0);
+                finalMotivosLabels.push('Outros (Diversos)');
+                finalMotivosData.push(outrosCount);
+            }
+
+            // Bases Ofensoras (Procedentes)
             const procedentes = npsData.filter(d => d.status === 'Procedente');
-            
-            procedentes.forEach(d => {
-                const prest = d.prestador || 'Desconhecido';
-                p[prest] = (p[prest]||0)+1; 
-            });
-            
+            procedentes.forEach(d => { const prest = d.prestador || 'Desconhecido'; p[prest] = (p[prest]||0)+1; });
             const topP = Object.entries(p).sort((a,b) => b[1] - a[1]).slice(0, 10);
             
-            drawChart('chartMotivos', 'bar', Object.keys(m), Object.values(m), (i)=> { activeChartFilter={type:'motivo',value:Object.keys(m)[i]}; refreshTable(); });
+            // Gráfico Horizontal Limpo
+            drawChart('chartMotivos', 'bar', finalMotivosLabels, finalMotivosData, (i)=> { 
+                // Filtro especial para clicar em "Outros" não quebrar
+                const label = finalMotivosLabels[i];
+                if(label !== 'Outros (Diversos)') {
+                    activeChartFilter={type:'motivo',value:label}; 
+                    refreshTable(); 
+                } else {
+                    showToast("Filtre pela lista para ver detalhes de 'Outros'", "info");
+                }
+            }, true, '#6366f1');
             
-            // Gráfico de Bases Ofensoras em Vermelho
-            drawChart('chartPrestadores', 'bar', topP.map(e => e[0]), topP.map(e => e[1]), (i)=> { activeChartFilter={type:'prestador',value:topP[i][0]}; refreshTable(); }, true, '#ef4444');
+            // Gráfico Vertical Bases Ofensoras
+            drawChart('chartPrestadores', 'bar', topP.map(e => e[0]), topP.map(e => e[1]), (i)=> { activeChartFilter={type:'prestador',value:topP[i][0]}; refreshTable(); }, false, '#ef4444');
         }
 
         function drawChart(id, t, l, d, cb, horiz = false, color = '#6366f1') {
             const cvs = document.getElementById(id); if(!cvs) return;
             if(chartInstances[id]) chartInstances[id].destroy();
+            
+            const valueAxis = horiz ? 'x' : 'y';
+            const categoryAxis = horiz ? 'y' : 'x';
+
             chartInstances[id] = new Chart(cvs, {
                 type: t, 
                 data:{
@@ -363,22 +437,21 @@
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    return context.parsed.y !== null ? parseInt(context.parsed.y) : parseInt(context.parsed.x);
+                                    return context.parsed.y !== null && !horiz ? parseInt(context.parsed.y) : parseInt(context.parsed.x);
                                 }
                             }
                         }
                     }, 
                     onClick:(e,el)=>{if(cb&&el.length)cb(el[0].index)}, 
                     scales:{
-                        x:{
-                            grid:{display:false},
-                            beginAtZero:true,
-                            ticks: { precision: 0 } // Força inteiros no eixo X
+                        [valueAxis]: {
+                            beginAtZero: true,
+                            grid: { borderDash: [2, 4] },
+                            ticks: { stepSize: 1, precision: 0 }
                         },
-                        y:{
-                            beginAtZero:true,
-                            grid:{borderDash:[2,4]},
-                            ticks: { stepSize: 1, precision: 0 } // Força inteiros no eixo Y
+                        [categoryAxis]: {
+                            grid: { display: false },
+                            ticks: { autoSkip: false } // Garante que todos os Top 5 apareçam
                         }
                     }
                 }
@@ -404,14 +477,11 @@
         };
 
         // --- Modals & CRUD ---
-        
-        // Função para carregar registro existente (vinda do Alerta Inteligente)
         window.loadExistingForEdit = function(id) {
             window.closeModal('formModal');
             setTimeout(() => window.openFormModal(id), 200);
         };
 
-        // Listeners Inteligentes
         function setupSmartAlerts() {
             const assistInput = document.getElementById('inpAssistencia');
             const prestadorInput = document.getElementById('inpPrestador');
@@ -419,13 +489,10 @@
             
             if(!assistInput || !prestadorInput) return;
 
-            // Alerta de Assistência Duplicada
             assistInput.addEventListener('blur', () => {
                 const val = assistInput.value.trim();
                 const currentId = document.getElementById('firebaseId').value;
                 if(!val) return;
-
-                // Procura duplicata (excluindo o próprio registro se estiver editando)
                 const exists = npsData.find(d => String(d.assistencia) === String(val) && d.firebaseId !== currentId);
                 
                 if (exists) {
@@ -447,21 +514,16 @@
                     `;
                     lucide.createIcons();
                 } else {
-                    // Limpa se não encontrar duplicação, mas mantendo outros alertas se houver
                     if(alertsDiv.innerHTML.includes('Assistência já cadastrada')) alertsDiv.innerHTML = '';
                 }
             });
 
-            // Alerta de Histórico do Prestador
             prestadorInput.addEventListener('blur', () => {
                 const val = prestadorInput.value.trim().toLowerCase();
                 if(!val || val.length < 3) return;
-
-                // Conta quantos procedentes esse prestador tem
                 const badCount = npsData.filter(d => (d.prestador||'').toLowerCase().includes(val) && d.status === 'Procedente').length;
 
                 if (badCount > 0) {
-                     // Adiciona ou atualiza alerta
                      const existingAlert = alertsDiv.querySelector('.provider-alert');
                      const alertHtml = `
                         <div class="provider-alert bg-red-50 border-l-4 border-red-500 p-3 mb-2 rounded shadow-sm animate-fade-in">
@@ -474,12 +536,7 @@
                             </div>
                         </div>
                      `;
-                     
-                     if (existingAlert) {
-                         existingAlert.outerHTML = alertHtml;
-                     } else {
-                         alertsDiv.innerHTML += alertHtml;
-                     }
+                     if (existingAlert) existingAlert.outerHTML = alertHtml; else alertsDiv.innerHTML += alertHtml;
                      lucide.createIcons();
                 }
             });
@@ -487,9 +544,9 @@
 
         window.openFormModal = function(id = null) {
             document.getElementById('recordForm').reset();
-            document.getElementById('formAlerts').innerHTML = ''; // Limpa alertas
+            document.getElementById('formAlerts').innerHTML = '';
             document.getElementById('inpAnalista').value = currentAnalista;
-            window.selectProduct(''); // Reset product selection
+            window.selectProduct('');
             
             if(id) {
                 const i = npsData.find(d => d.firebaseId === id);
@@ -515,7 +572,7 @@
                 document.getElementById('formModalTitle').innerHTML = `<i data-lucide="plus-circle" class="h-4 w-4"></i> Novo Registro`;
             }
             document.getElementById('formModal').classList.remove('hidden');
-            setupSmartAlerts(); // Ativa os listeners
+            setupSmartAlerts();
             lucide.createIcons();
         };
 
@@ -584,30 +641,13 @@
 
         window.exportToExcel = function() {
             if(!npsData.length) { showToast("Sem dados.", "warning"); return; }
-            
-            // Mapeamento explícito para garantir a ordem e nomes das colunas (Formato Tabela)
             const exportData = npsData.map(d => ({
-                "ID Assistência": d.assistencia,
-                "Data": d.data,
-                "Nota NPS": d.nota,
-                "Analista": d.analista,
-                "Produto": d.produto,
-                "Prestador": d.prestador,
-                "Código FA": d.fa,
-                "Cidade": d.cidade,
-                "UF": d.uf,
-                "Tipo de Serviço": d.tipoServico,
-                "Status": d.status,
-                "Motivo": d.motivo,
-                "Ação na Rede": d.acaoRede,
-                "Comentário Técnico": d.comentario,
-                "Sinalizador de Risco": checkRisk(d.comentario) ? "SIM" : "NÃO"
+                "ID Assistência": d.assistencia, "Data": d.data, "Nota NPS": d.nota, "Analista": d.analista, "Produto": d.produto, "Prestador": d.prestador, "Código FA": d.fa, "Cidade": d.cidade, "UF": d.uf, "Tipo de Serviço": d.tipoServico, "Status": d.status, "Motivo": d.motivo, "Ação na Rede": d.acaoRede, "Comentário Técnico": d.comentario, "Sinalizador de Risco": checkRisk(d.comentario) ? "SIM" : "NÃO"
             }));
-
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Base NPS");
-            XLSX.writeFile(wb, "NPS_Exportacao_v4.1.xlsx");
+            XLSX.writeFile(wb, "NPS_Exportacao_v4.2.xlsx");
             showToast("Download iniciado!", "success");
         };
 
@@ -615,7 +655,6 @@
             const i = npsData.find(d => d.firebaseId === id);
             if(!i) return;
             
-            // Format Product badge for modal
             let prodBadge = i.produto;
             if(i.produto === 'HDI') prodBadge = `<span class="px-2 py-1 bg-green-100 text-green-800 font-bold rounded">HDI</span>`;
             if(i.produto === 'YELUM') prodBadge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 font-bold rounded">YELUM</span>`;
@@ -642,7 +681,6 @@
             document.getElementById('detailsModal').classList.remove('hidden');
         };
 
-        // Standard Window Functions
         window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
         window.toggleSelectRow = (id) => { if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id); window.updateBulkUI(); };
         window.toggleSelectAll = () => { const c = document.getElementById('selectAllCheckbox').checked; document.querySelectorAll('.row-cb').forEach(cb => { cb.checked = c; if(c) selectedIds.add(cb.getAttribute('data-id')); else selectedIds.delete(cb.getAttribute('data-id')); }); window.updateBulkUI(); };
@@ -655,7 +693,6 @@
         window.duplicateRecord = async (id) => { const orig = npsData.find(d=>d.firebaseId===id); if(orig && confirm("Duplicar?")) { const copy={...orig}; delete copy.firebaseId; copy.createdAt=new Date().toISOString(); copy.analista=currentAnalista; await addDoc(collection(db, COLLECTION_NAME), copy); showToast("Duplicado"); } };
         window.downloadTemplate = () => { const ws = XLSX.utils.json_to_sheet([{"Assistencia":"123","Data":"01/01/2026","Nota":0,"Produto":"HDI","Cidade":"SP","UF":"SP","Prestador":"X","TipoServico":"Encanador"}]); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Modelo"); XLSX.writeFile(wb, "Modelo.xlsx"); };
         
-        // Audit
         window.openAuditModal = function() {
             const m = document.getElementById('auditModal');
             const b = document.getElementById('auditBody');
@@ -671,7 +708,6 @@
             });
         };
 
-        // Auth
         window.performLogin = function() {
             const n = document.getElementById('loginName').value;
             if(!n) return alert("Nome obrigatório");
@@ -853,7 +889,7 @@
             <div class="flex items-center space-x-3">
                 <div class="bg-indigo-700 p-2 rounded-lg"><i data-lucide="cloud" class="h-6 w-6 text-green-400"></i></div>
                 <div>
-                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 4.1</h1>
+                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 4.2</h1>
                     <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
                 </div>
             </div>
@@ -882,7 +918,7 @@
         </div>
 
         <!-- Dashboard KPIs (Grid de 3 colunas, ajustado para v4.1) -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-gray-400 flex flex-col justify-between"><div class="flex justify-between"><p class="text-xs text-gray-500 font-bold uppercase">Total</p><i data-lucide="file-text" class="h-5 w-5 text-gray-300"></i></div><h3 class="text-3xl font-bold mt-2" id="kpi-total">0</h3></div>
             <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500 flex flex-col justify-between"><div class="flex justify-between"><p class="text-xs text-gray-500 font-bold uppercase">Procedentes</p><span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded font-bold" id="kpi-procedente-pct">0%</span></div><h3 class="text-3xl font-bold mt-2 text-red-600" id="kpi-procedente">0</h3></div>
             
@@ -899,8 +935,11 @@
             </div>
         </div>
 
+        <!-- Smart Insights Bar -->
+        <div id="smartInsightsContainer" class="mb-6 w-full animate-fade-in"></div>
+
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6 flex justify-between"><span><i data-lucide="bar-chart-2" class="h-4 w-4 inline mr-2"></i> Motivos</span><button onclick="clearChartFilter()" class="text-xs text-indigo-600 underline">Limpar</button></h3><div class="chart-container" style="height: 280px;"><canvas id="chartMotivos"></canvas></div></div>
+            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6 flex justify-between"><span><i data-lucide="bar-chart-2" class="h-4 w-4 inline mr-2"></i> Top 5 Motivos (+ Outros)</span><button onclick="clearChartFilter()" class="text-xs text-indigo-600 underline">Limpar</button></h3><div class="chart-container" style="height: 280px;"><canvas id="chartMotivos"></canvas></div></div>
             <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6"><i data-lucide="alert-triangle" class="h-4 w-4 inline mr-2"></i> Bases Ofensoras (Procedentes)</h3><div class="chart-container" style="height: 280px;"><canvas id="chartPrestadores"></canvas></div></div>
         </div>
 
