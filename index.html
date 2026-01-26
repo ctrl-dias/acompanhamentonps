@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 4.2 - Gestão Avançada</title>
+    <title>Dashboard NPS 4.3 - Gestão Avançada</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -264,7 +264,7 @@
             document.getElementById('loadMoreBtn').classList.toggle('hidden', visibleItems >= filtered.length);
 
             filtered.slice(0, visibleItems).forEach(row => {
-                const isRisk = checkRisk(row.comentario);
+                const isRisk = checkRisk(row.comentario) || checkRisk(row.vozDoCliente);
                 const isSel = selectedIds.has(row.firebaseId);
                 const tr = document.createElement('tr');
                 tr.className = `group hover:bg-indigo-50 transition border-b border-gray-100 last:border-0 ${isRisk ? 'bg-red-50' : ''}`;
@@ -313,7 +313,11 @@
         function refreshCharts() {
             const m = {}; const p = {};
             
-            npsData.forEach(d => { m[d.motivo||'Outros'] = (m[d.motivo||'Outros']||0)+1; });
+            // Normalizar os motivos para evitar duplicidade de strings sujas
+            npsData.forEach(d => { 
+                const motivo = (d.motivo || 'Outros').trim();
+                m[motivo] = (m[motivo]||0)+1; 
+            });
 
             // Lógica Inteligente para Motivos (Pareto: Top 5 + Outros)
             const sortedMotivos = Object.entries(m).sort((a,b) => b[1] - a[1]);
@@ -339,7 +343,7 @@
             procedentes.forEach(d => { const prest = d.prestador || 'Desconhecido'; p[prest] = (p[prest]||0)+1; });
             const topP = Object.entries(p).sort((a,b) => b[1] - a[1]).slice(0, 10);
             
-            // Gráfico Horizontal Limpo
+            // Gráfico Horizontal Limpo (Motivos)
             drawChart('chartMotivos', 'bar', finalMotivosLabels, finalMotivosData, (i)=> { 
                 // Filtro especial para clicar em "Outros" não quebrar
                 const label = finalMotivosLabels[i];
@@ -481,9 +485,9 @@
                                 </div>
                             </div>
                         </div>
-                     `;
-                     if (existingAlert) existingAlert.outerHTML = alertHtml; else alertsDiv.innerHTML += alertHtml;
-                     lucide.createIcons();
+                      `;
+                      if (existingAlert) existingAlert.outerHTML = alertHtml; else alertsDiv.innerHTML += alertHtml;
+                      lucide.createIcons();
                 }
             });
         }
@@ -508,6 +512,7 @@
                     document.getElementById('inpUF').value = i.uf || '';
                     document.getElementById('inpStatus').value = i.status;
                     document.getElementById('inpMotivo').value = i.motivo;
+                    document.getElementById('inpVozCliente').value = i.vozDoCliente || ''; // Novo Campo
                     document.getElementById('inpComentario').value = i.comentario;
                     document.getElementById('inpAcao').value = i.acaoRede;
                     window.selectProduct(i.produto || '');
@@ -538,6 +543,7 @@
                 tipoServico: document.getElementById('inpTipoServico').value,
                 status: document.getElementById('inpStatus').value,
                 motivo: document.getElementById('inpMotivo').value,
+                vozDoCliente: document.getElementById('inpVozCliente').value, // Novo Campo
                 comentario: document.getElementById('inpComentario').value,
                 acaoRede: document.getElementById('inpAcao').value
             };
@@ -564,6 +570,7 @@
                             data: r.Data || r.data || "-",
                             status: r.Status || r.status || "Em Análise",
                             comentario: r.Comentario || r.Obs || "",
+                            vozDoCliente: r.VozCliente || r.vozDoCliente || "",
                             analista: currentAnalista,
                             prestador: r.Prestador || r.prestador || "",
                             tipoServico: r.TipoServico || r.Servico || "",
@@ -588,12 +595,12 @@
         window.exportToExcel = function() {
             if(!npsData.length) { showToast("Sem dados.", "warning"); return; }
             const exportData = npsData.map(d => ({
-                "ID Assistência": d.assistencia, "Data": d.data, "Nota NPS": d.nota, "Analista": d.analista, "Produto": d.produto, "Prestador": d.prestador, "Código FA": d.fa, "Cidade": d.cidade, "UF": d.uf, "Tipo de Serviço": d.tipoServico, "Status": d.status, "Motivo": d.motivo, "Ação na Rede": d.acaoRede, "Comentário Técnico": d.comentario, "Sinalizador de Risco": checkRisk(d.comentario) ? "SIM" : "NÃO"
+                "ID Assistência": d.assistencia, "Data": d.data, "Nota NPS": d.nota, "Analista": d.analista, "Produto": d.produto, "Prestador": d.prestador, "Código FA": d.fa, "Cidade": d.cidade, "UF": d.uf, "Tipo de Serviço": d.tipoServico, "Status": d.status, "Motivo": d.motivo, "Ação na Rede": d.acaoRede, "Voz do Cliente": d.vozDoCliente, "Comentário Técnico": d.comentario, "Sinalizador de Risco": checkRisk(d.comentario) || checkRisk(d.vozDoCliente) ? "SIM" : "NÃO"
             }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Base NPS");
-            XLSX.writeFile(wb, "NPS_Exportacao_v4.2.xlsx");
+            XLSX.writeFile(wb, "NPS_Exportacao_v4.3.xlsx");
             showToast("Download iniciado!", "success");
         };
 
@@ -619,12 +626,17 @@
                     <div><p class="text-xs text-gray-500 font-bold uppercase">Analista</p><p>${i.analista}</p></div>
                     <div><p class="text-xs text-gray-500 font-bold uppercase">Ação Rede</p><p>${i.acaoRede || '-'}</p></div>
                 </div>
+                <div class="bg-indigo-50 p-4 rounded border border-indigo-100 mb-2">
+                    <p class="text-xs text-indigo-500 font-bold mb-2 uppercase flex items-center gap-1"><i data-lucide="message-circle" class="h-3 w-3"></i> Voz do Cliente</p>
+                    <p class="text-sm text-gray-800 leading-relaxed italic">"${i.vozDoCliente || 'Sem registro.'}"</p>
+                </div>
                 <div class="bg-gray-50 p-4 rounded border border-gray-200">
                     <p class="text-xs text-gray-500 font-bold mb-2 uppercase">Comentário Técnico</p>
                     <p class="text-sm text-gray-800 leading-relaxed">${i.comentario}</p>
                 </div>
             `;
             document.getElementById('detailsModal').classList.remove('hidden');
+            lucide.createIcons();
         };
 
         window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
@@ -710,7 +722,7 @@
                     <i data-lucide="arrow-right" class="h-5 w-5"></i>
                 </button>
             </div>
-            <p class="mt-8 text-xs text-gray-400">Ambiente Seguro • Versão 2.4</p>
+            <p class="mt-8 text-xs text-gray-400">Ambiente Seguro • Versão 4.3</p>
         </div>
     </div>
 
@@ -807,8 +819,33 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Motivo</label>
-                        <input type="text" id="inpMotivo" class="w-full border p-2 rounded text-sm">
+                        <select id="inpMotivo" class="w-full border p-2 rounded text-sm bg-white">
+                            <option value="">Selecione...</option>
+                            <option value="Visita não realizada">Visita não realizada</option>
+                            <option value="Demora no envio do orçamento">Demora no envio do orçamento</option>
+                            <option value="Cobertura">Cobertura</option>
+                            <option value="Falha operacional">Falha operacional</option>
+                            <option value="Atraso">Atraso</option>
+                            <option value="Procedimento incorreto">Procedimento incorreto</option>
+                            <option value="Envio de checklist">Envio de checklist</option>
+                            <option value="Desqualificação">Desqualificação</option>
+                            <option value="Falta de posicionamento">Falta de posicionamento</option>
+                            <option value="Postura">Postura</option>
+                            <option value="Percepção">Percepção</option>
+                            <option value="Estrutura deficitária da rede">Estrutura deficitária da rede</option>
+                            <option value="Cancelamento de atendimento">Cancelamento de atendimento</option>
+                            <option value="Sem falha do prestador / operação">Sem falha do prestador / operação</option>
+                            <option value="Outros">Outros</option>
+                        </select>
                     </div>
+                </div>
+
+                <!-- NOVO CAMPO: VOZ DO CLIENTE -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase flex items-center gap-1">
+                        <i data-lucide="message-circle" class="h-3 w-3 text-indigo-600"></i> Voz do Cliente
+                    </label>
+                    <textarea id="inpVozCliente" rows="2" placeholder="O que o cliente disse exatamente?" class="w-full border p-2 rounded text-sm resize-none bg-indigo-50/50 border-indigo-200 focus:bg-white transition-colors"></textarea>
                 </div>
                 
                 <div>
@@ -835,7 +872,7 @@
             <div class="flex items-center space-x-3">
                 <div class="bg-indigo-700 p-2 rounded-lg"><i data-lucide="cloud" class="h-6 w-6 text-green-400"></i></div>
                 <div>
-                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 4.2</h1>
+                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 4.3</h1>
                     <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
                 </div>
             </div>
