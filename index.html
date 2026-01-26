@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 4.2 - Inteligência de Dados</title>
+    <title>Dashboard NPS 4.2 - Gestão Avançada</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -55,10 +55,6 @@
         
         .btn-hdi.selected { background-color: #dcfce7; color: #166534; border-color: #86efac; }
         .btn-yelum.selected { background-color: #fef9c3; color: #854d0e; border-color: #fde047; }
-
-        /* Insights Bar Animation */
-        .insight-item { transition: all 0.3s ease; }
-        .insight-item:hover { transform: translateY(-2px); }
 
         /* Login Background Animation */
         @keyframes gradient-xy {
@@ -189,7 +185,6 @@
         // --- Dashboard UI ---
         function refreshDashboard() {
             refreshKPIs();
-            generateSmartInsights(); // Nova Função de Inteligência
             refreshTable();
             refreshCharts();
         }
@@ -217,55 +212,6 @@
             
             document.getElementById('kpi-offender-name').textContent = topOffenderName;
             document.getElementById('kpi-offender-count').textContent = topOffenderCount > 0 ? `${topOffenderCount} casos` : 'Sem dados';
-        }
-
-        // --- INTELLIGENT INSIGHTS (NOVA FUNCIONALIDADE) ---
-        function generateSmartInsights() {
-            const container = document.getElementById('smartInsightsContainer');
-            if(!container) return;
-            
-            if(npsData.length === 0) {
-                container.innerHTML = '<div class="text-gray-400 text-sm italic">Aguardando dados para gerar insights...</div>';
-                return;
-            }
-
-            let insights = [];
-
-            // Insight 1: Cidade Crítica
-            const cityMap = {};
-            npsData.forEach(d => { if(d.cidade) { if(!cityMap[d.cidade]) cityMap[d.cidade] = {sum:0, count:0}; cityMap[d.cidade].sum += Number(d.nota||0); cityMap[d.cidade].count++; }});
-            let worstCity = {name:'', avg: 11};
-            Object.entries(cityMap).forEach(([name, data]) => {
-                if(data.count >= 2) { // Minimo 2 registros
-                    const avg = data.sum / data.count;
-                    if(avg < worstCity.avg) worstCity = {name, avg};
-                }
-            });
-            if(worstCity.name) insights.push({icon: 'map-pin', color: 'red', text: `<strong>${worstCity.name}</strong> tem a menor média de nota (${worstCity.avg.toFixed(1)}).`});
-
-            // Insight 2: Motivo Recorrente
-            const motivoMap = {};
-            npsData.filter(d => d.nota <= 6).forEach(d => { const m = d.motivo || 'N/D'; motivoMap[m] = (motivoMap[m]||0)+1; });
-            const topMotivo = Object.entries(motivoMap).sort((a,b)=>b[1]-a[1])[0];
-            if(topMotivo) insights.push({icon: 'alert-circle', color: 'orange', text: `<strong>${topMotivo[0]}</strong> é o principal motivo de notas baixas (${topMotivo[1]}x).`});
-
-            // Insight 3: Destaque Positivo
-            const topPromoter = npsData.filter(d => d.nota >= 9).length;
-            if(topPromoter > 0) insights.push({icon: 'thumbs-up', color: 'green', text: `Temos <strong>${topPromoter}</strong> Promotores na base atual.`});
-
-            // Render
-            let html = '<div class="flex flex-col md:flex-row gap-4 w-full">';
-            insights.forEach(i => {
-                html += `
-                    <div class="insight-item flex-1 bg-white border-l-4 border-${i.color}-500 p-3 rounded shadow-sm flex items-center gap-3">
-                        <div class="bg-${i.color}-50 p-2 rounded-full text-${i.color}-600"><i data-lucide="${i.icon}" class="w-4 h-4"></i></div>
-                        <p class="text-sm text-gray-700">${i.text}</p>
-                    </div>
-                `;
-            });
-            html += '</div>';
-            container.innerHTML = html;
-            lucide.createIcons();
         }
 
         function getFilteredData() {
@@ -934,9 +880,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Smart Insights Bar -->
-        <div id="smartInsightsContainer" class="mb-6 w-full animate-fade-in"></div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6 flex justify-between"><span><i data-lucide="bar-chart-2" class="h-4 w-4 inline mr-2"></i> Top 5 Motivos (+ Outros)</span><button onclick="clearChartFilter()" class="text-xs text-indigo-600 underline">Limpar</button></h3><div class="chart-container" style="height: 280px;"><canvas id="chartMotivos"></canvas></div></div>
