@@ -3,10 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 4.3 - Gestão Avançada</title>
+    <title>Dashboard NPS 4.4 - Visual Moderno</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        slate: {
+                            850: '#1e293b',
+                            900: '#0f172a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -21,49 +38,78 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        
+        /* Modern Card Styles */
+        .card-modern {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card-modern:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
         .chart-container { position: relative; height: 300px; width: 100%; }
-        .custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Animations */
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
         .risk-badge { animation: pulse-red 2s infinite; }
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 70% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); } 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
-        .custom-checkbox { cursor: pointer; accent-color: #4f46e5; width: 16px; height: 16px; }
-        .sort-icon { display: inline-block; width: 12px; margin-left: 4px; opacity: 0.5; }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); } 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
+        
+        /* Inputs & Checkboxes */
+        .custom-checkbox { cursor: pointer; accent-color: #6366f1; width: 18px; height: 18px; border-radius: 4px; }
+        .sort-icon { display: inline-block; width: 12px; margin-left: 4px; opacity: 0.3; transition: opacity 0.2s; }
         th:hover .sort-icon { opacity: 1; }
         
-        /* Product Selection Styles */
+        /* Product Selection Styles - Modernized */
         .btn-prod { 
-            transition: all 0.2s; 
-            border: 1px solid #e5e7eb; 
-            opacity: 0.7; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            border: 1px solid #e2e8f0; 
             font-size: 0.75rem; 
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            position: relative;
+            overflow: hidden;
         }
-        .btn-prod:hover { opacity: 1; border-color: #cbd5e1; }
+        .btn-prod:hover { border-color: #cbd5e1; background-color: #f8fafc; }
         .btn-prod.selected { 
-            opacity: 1; 
             font-weight: 700;
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 1px solid transparent;
         }
         
-        .btn-hdi.selected { background-color: #dcfce7; color: #166534; border-color: #86efac; }
-        .btn-yelum.selected { background-color: #fef9c3; color: #854d0e; border-color: #fde047; }
-
-        /* Login Background Animation */
-        @keyframes gradient-xy {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
+        .btn-hdi.selected { 
+            background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); 
+            color: #14532d; 
         }
-        .animate-gradient {
-            background-size: 200% 200%;
-            animation: gradient-xy 6s ease infinite;
+        .btn-yelum.selected { 
+            background: linear-gradient(135deg, #fef9c3 0%, #fde047 100%); 
+            color: #713f12; 
+        }
+
+        /* Glassmorphism Utilities */
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
     </style>
 
@@ -134,12 +180,26 @@
         function showToast(msg, type='info') {
             const container = document.getElementById('toast-container');
             const t = document.createElement('div');
-            t.className = `p-4 rounded shadow-xl text-white text-sm bg-gray-800 border-l-4 border-indigo-500 toast-enter flex items-center gap-2 mb-2`;
-            if(type==='warning') t.classList.replace('bg-gray-800', 'bg-red-600');
-            if(type==='success') t.classList.replace('bg-gray-800', 'bg-green-600');
-            t.innerHTML = `<span>${msg}</span>`;
+            // Toast Moderno
+            t.className = `p-4 rounded-xl shadow-2xl text-white text-sm backdrop-blur-md border border-white/10 toast-enter flex items-center gap-3 mb-3 transform transition-all duration-300 hover:scale-105`;
+            
+            if(type==='info') t.classList.add('bg-slate-800/90');
+            if(type==='warning') t.classList.add('bg-orange-600/90');
+            if(type==='success') t.classList.add('bg-emerald-600/90');
+            
+            let icon = '';
+            if(type==='success') icon = '<i data-lucide="check-circle" class="w-5 h-5"></i>';
+            else if(type==='warning') icon = '<i data-lucide="alert-triangle" class="w-5 h-5"></i>';
+            else icon = '<i data-lucide="info" class="w-5 h-5"></i>';
+
+            t.innerHTML = `${icon}<span class="font-medium">${msg}</span>`;
             if(container) container.appendChild(t);
-            setTimeout(()=>t.remove(), 4000);
+            lucide.createIcons();
+            setTimeout(()=> {
+                t.style.opacity = '0';
+                t.style.transform = 'translateX(100%)';
+                setTimeout(() => t.remove(), 300);
+            }, 4000);
         }
 
         // --- Lógica de Conexão ---
@@ -267,40 +327,45 @@
                 const isRisk = checkRisk(row.comentario) || checkRisk(row.vozDoCliente);
                 const isSel = selectedIds.has(row.firebaseId);
                 const tr = document.createElement('tr');
-                tr.className = `group hover:bg-indigo-50 transition border-b border-gray-100 last:border-0 ${isRisk ? 'bg-red-50' : ''}`;
+                tr.className = `group hover:bg-slate-50 transition-colors duration-200 border-b border-slate-100 last:border-0 ${isRisk ? 'bg-red-50/50 hover:bg-red-50' : ''}`;
                 
-                let statusClass = 'bg-gray-100 text-gray-800';
-                if(row.status === 'Procedente') statusClass = 'bg-red-100 text-red-800';
-                else if(row.status === 'Improcedente') statusClass = 'bg-green-100 text-green-800';
-                else if(row.status === 'Neutra') statusClass = 'bg-indigo-100 text-indigo-800 border-indigo-200';
+                let statusClass = 'bg-slate-100 text-slate-600';
+                if(row.status === 'Procedente') statusClass = 'bg-rose-100 text-rose-700';
+                else if(row.status === 'Improcedente') statusClass = 'bg-emerald-100 text-emerald-700';
+                else if(row.status === 'Neutra') statusClass = 'bg-indigo-50 text-indigo-700 border-indigo-100';
+                else if(row.status === 'Em Análise') statusClass = 'bg-amber-100 text-amber-700';
                 
                 let prodBadge = '';
-                if(row.produto === 'HDI') prodBadge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">HDI</span>';
-                else if(row.produto === 'YELUM') prodBadge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">YELUM</span>';
+                if(row.produto === 'HDI') prodBadge = '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-sm">HDI</span>';
+                else if(row.produto === 'YELUM') prodBadge = '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 shadow-sm">YELUM</span>';
+
+                let noteClass = 'bg-emerald-50 text-emerald-600 border-emerald-100';
+                if(row.nota < 7) noteClass = 'bg-rose-50 text-rose-600 border-rose-100';
+                else if (row.nota < 9) noteClass = 'bg-amber-50 text-amber-600 border-amber-100';
 
                 tr.innerHTML = `
-                    <td class="p-4 text-center w-10"><input type="checkbox" class="custom-checkbox row-cb cursor-pointer" data-id="${row.firebaseId}" ${isSel ? 'checked' : ''} onchange="window.toggleSelectRow('${row.firebaseId}')"></td>
-                    <td class="p-4 font-bold text-indigo-900 whitespace-nowrap">
+                    <td class="p-4 text-center w-12"><input type="checkbox" class="custom-checkbox row-cb" data-id="${row.firebaseId}" ${isSel ? 'checked' : ''} onchange="window.toggleSelectRow('${row.firebaseId}')"></td>
+                    <td class="p-4 font-semibold text-slate-700 whitespace-nowrap">
                         <div class="flex items-center gap-2">
-                            ${prodBadge} <span>#${row.assistencia}</span>
-                            ${isRisk ? '<span class="risk-badge bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">!</span>' : ''}
+                            ${prodBadge} <span class="tracking-tight">#${row.assistencia}</span>
+                            ${isRisk ? '<span class="risk-badge bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">!</span>' : ''}
                         </div>
                     </td>
-                    <td class="p-4 text-gray-500 whitespace-nowrap text-xs">${row.data || '-'}</td>
-                    <td class="p-4"><span class="px-2 py-1 rounded text-xs font-bold ${row.nota < 7 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}">${row.nota}</span></td>
-                    <td class="p-4 text-gray-600 text-xs truncate max-w-[120px]" title="${row.cidade} - ${row.uf}">${row.cidade ? `${row.cidade}-${row.uf}` : '-'}</td>
-                    <td class="p-4 text-gray-600 text-xs max-w-[180px] truncate" title="${row.fa || ''} ${row.prestador}">
-                        ${row.fa ? `<span class="font-bold text-indigo-700 bg-indigo-50 px-1 rounded mr-1">${row.fa}</span>` : ''} ${row.prestador}
+                    <td class="p-4 text-slate-500 whitespace-nowrap text-xs font-medium">${row.data || '-'}</td>
+                    <td class="p-4"><span class="px-2.5 py-1 rounded-lg text-xs font-bold border ${noteClass}">${row.nota}</span></td>
+                    <td class="p-4 text-slate-600 text-xs truncate max-w-[120px] font-medium" title="${row.cidade} - ${row.uf}">${row.cidade ? `${row.cidade}-${row.uf}` : '-'}</td>
+                    <td class="p-4 text-slate-600 text-xs max-w-[180px] truncate" title="${row.fa || ''} ${row.prestador}">
+                        ${row.fa ? `<span class="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 mr-1">${row.fa}</span>` : ''} ${row.prestador}
                     </td>
-                    <td class="p-4 text-gray-500 text-xs truncate max-w-[100px]">${row.tipoServico || '-'}</td>
-                    <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-medium border ${statusClass}">${row.status}</span></td>
-                    <td class="p-4 text-gray-600 text-xs truncate max-w-[120px]" title="${row.analista}">${row.analista || '-'}</td>
+                    <td class="p-4 text-slate-500 text-xs truncate max-w-[100px]">${row.tipoServico || '-'}</td>
+                    <td class="p-4"><span class="px-3 py-1 rounded-full text-xs font-semibold border border-transparent ${statusClass}">${row.status}</span></td>
+                    <td class="p-4 text-slate-600 text-xs truncate max-w-[120px] font-medium" title="${row.analista}">${row.analista || '-'}</td>
                     <td class="p-4 text-right">
-                        <div class="flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                            <button onclick="window.copySummary('${row.firebaseId}')" class="p-1 hover:text-green-600" title="Copiar Resumo"><i data-lucide="clipboard-copy" class="h-4 w-4"></i></button>
-                            <button onclick="window.viewDetails('${row.firebaseId}')" class="p-1 hover:text-indigo-600"><i data-lucide="eye" class="h-4 w-4"></i></button>
-                            <button onclick="window.openFormModal('${row.firebaseId}')" class="p-1 hover:text-blue-600"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
-                            <button onclick="window.confirmSingleDelete('${row.firebaseId}')" class="p-1 hover:text-red-600"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                        <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                            <button onclick="window.copySummary('${row.firebaseId}')" class="p-1.5 rounded-md hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors" title="Copiar Resumo"><i data-lucide="clipboard-copy" class="h-4 w-4"></i></button>
+                            <button onclick="window.viewDetails('${row.firebaseId}')" class="p-1.5 rounded-md hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"><i data-lucide="eye" class="h-4 w-4"></i></button>
+                            <button onclick="window.openFormModal('${row.firebaseId}')" class="p-1.5 rounded-md hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="edit-2" class="h-4 w-4"></i></button>
+                            <button onclick="window.confirmSingleDelete('${row.firebaseId}')" class="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
                         </div>
                     </td>
                 `;
@@ -343,6 +408,10 @@
             procedentes.forEach(d => { const prest = d.prestador || 'Desconhecido'; p[prest] = (p[prest]||0)+1; });
             const topP = Object.entries(p).sort((a,b) => b[1] - a[1]).slice(0, 10);
             
+            // Cores Modernas
+            const colorMotivo = '#6366f1'; // Indigo 500
+            const colorPrestador = '#f43f5e'; // Rose 500
+
             // Gráfico Horizontal Limpo (Motivos)
             drawChart('chartMotivos', 'bar', finalMotivosLabels, finalMotivosData, (i)=> { 
                 // Filtro especial para clicar em "Outros" não quebrar
@@ -353,10 +422,10 @@
                 } else {
                     showToast("Filtre pela lista para ver detalhes de 'Outros'", "info");
                 }
-            }, true, '#6366f1');
+            }, true, colorMotivo);
             
             // Gráfico Vertical Bases Ofensoras
-            drawChart('chartPrestadores', 'bar', topP.map(e => e[0]), topP.map(e => e[1]), (i)=> { activeChartFilter={type:'prestador',value:topP[i][0]}; refreshTable(); }, false, '#ef4444');
+            drawChart('chartPrestadores', 'bar', topP.map(e => e[0]), topP.map(e => e[1]), (i)=> { activeChartFilter={type:'prestador',value:topP[i][0]}; refreshTable(); }, false, colorPrestador);
         }
 
         function drawChart(id, t, l, d, cb, horiz = false, color = '#6366f1') {
@@ -366,6 +435,10 @@
             const valueAxis = horiz ? 'x' : 'y';
             const categoryAxis = horiz ? 'y' : 'x';
 
+            // Configuração do Chart.js com design mais limpo
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            Chart.defaults.color = '#64748b';
+
             chartInstances[id] = new Chart(cvs, {
                 type: t, 
                 data:{
@@ -373,9 +446,11 @@
                     datasets:[{
                         label:'Qtd',
                         data:d,
-                        backgroundColor:color,
-                        borderRadius:4,
-                        barPercentage:0.6
+                        backgroundColor: color,
+                        hoverBackgroundColor: horiz ? '#4f46e5' : '#e11d48',
+                        borderRadius: 6,
+                        barPercentage: 0.6,
+                        borderSkipped: false
                     }]
                 }, 
                 options:{
@@ -385,9 +460,15 @@
                     plugins:{
                         legend:{display:false},
                         tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            padding: 12,
+                            titleFont: { size: 13, weight: 600 },
+                            bodyFont: { size: 12 },
+                            cornerRadius: 8,
+                            displayColors: false,
                             callbacks: {
                                 label: function(context) {
-                                    return context.parsed.y !== null && !horiz ? parseInt(context.parsed.y) : parseInt(context.parsed.x);
+                                    return context.parsed.y !== null && !horiz ? parseInt(context.parsed.y) + ' casos' : parseInt(context.parsed.x) + ' casos';
                                 }
                             }
                         }
@@ -396,12 +477,12 @@
                     scales:{
                         [valueAxis]: {
                             beginAtZero: true,
-                            grid: { borderDash: [2, 4] },
-                            ticks: { stepSize: 1, precision: 0 }
+                            grid: { borderDash: [4, 4], color: '#f1f5f9', drawBorder: false },
+                            ticks: { stepSize: 1, precision: 0, font: {size: 11} }
                         },
                         [categoryAxis]: {
-                            grid: { display: false },
-                            ticks: { autoSkip: false } // Garante que todos os Top 5 apareçam
+                            grid: { display: false, drawBorder: false },
+                            ticks: { autoSkip: false, font: {size: 11, weight: 500} } 
                         }
                     }
                 }
@@ -447,15 +528,15 @@
                 
                 if (exists) {
                     alertsDiv.innerHTML = `
-                        <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2 rounded shadow-sm animate-fade-in">
-                            <div class="flex items-start">
-                                <div class="flex-shrink-0"><i data-lucide="alert-circle" class="h-5 w-5 text-yellow-500"></i></div>
-                                <div class="ml-3">
-                                    <p class="text-sm text-yellow-700 font-bold">Assistência já cadastrada!</p>
-                                    <p class="text-xs text-yellow-600 mt-1">Prestador: <strong>${exists.prestador}</strong> | Status: ${exists.status}</p>
+                        <div class="bg-amber-50 border border-amber-200 p-4 mb-3 rounded-lg shadow-sm animate-fade-in">
+                            <div class="flex items-start gap-3">
+                                <div class="bg-amber-100 p-1.5 rounded-full"><i data-lucide="alert-circle" class="h-5 w-5 text-amber-600"></i></div>
+                                <div class="flex-1">
+                                    <p class="text-sm text-amber-900 font-bold">Assistência duplicada!</p>
+                                    <p class="text-xs text-amber-700 mt-1">Este ID já consta no banco para o prestador <strong>${exists.prestador}</strong>.</p>
                                     <div class="mt-2">
-                                        <button type="button" onclick="window.loadExistingForEdit('${exists.firebaseId}')" class="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-2 py-1 rounded border border-yellow-300 transition-colors">
-                                            Editar Existente
+                                        <button type="button" onclick="window.loadExistingForEdit('${exists.firebaseId}')" class="text-xs bg-white hover:bg-amber-50 text-amber-700 px-3 py-1.5 rounded-md border border-amber-200 shadow-sm transition-all font-medium">
+                                            Abrir Registro Existente
                                         </button>
                                     </div>
                                 </div>
@@ -464,7 +545,7 @@
                     `;
                     lucide.createIcons();
                 } else {
-                    if(alertsDiv.innerHTML.includes('Assistência já cadastrada')) alertsDiv.innerHTML = '';
+                    if(alertsDiv.innerHTML.includes('Assistência duplicada')) alertsDiv.innerHTML = '';
                 }
             });
 
@@ -476,13 +557,11 @@
                 if (badCount > 0) {
                      const existingAlert = alertsDiv.querySelector('.provider-alert');
                      const alertHtml = `
-                        <div class="provider-alert bg-red-50 border-l-4 border-red-500 p-3 mb-2 rounded shadow-sm animate-fade-in">
-                            <div class="flex items-center">
-                                <i data-lucide="info" class="h-5 w-5 text-red-500 mr-2"></i>
-                                <div>
-                                    <p class="text-sm text-red-700 font-bold">Atenção ao Prestador</p>
-                                    <p class="text-xs text-red-600">Este prestador já possui <strong>${badCount}</strong> reclamações procedentes.</p>
-                                </div>
+                        <div class="provider-alert bg-rose-50 border border-rose-200 p-3 mb-3 rounded-lg shadow-sm animate-fade-in flex items-center gap-3">
+                            <div class="bg-rose-100 p-1.5 rounded-full"><i data-lucide="alert-triangle" class="h-4 w-4 text-rose-600"></i></div>
+                            <div>
+                                <p class="text-sm text-rose-800 font-bold">Prestador em Alerta</p>
+                                <p class="text-xs text-rose-600">Histórico de <strong>${badCount}</strong> reclamações procedentes.</p>
                             </div>
                         </div>
                       `;
@@ -609,31 +688,68 @@
             if(!i) return;
             
             let prodBadge = i.produto;
-            if(i.produto === 'HDI') prodBadge = `<span class="px-2 py-1 bg-green-100 text-green-800 font-bold rounded">HDI</span>`;
-            if(i.produto === 'YELUM') prodBadge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 font-bold rounded">YELUM</span>`;
+            if(i.produto === 'HDI') prodBadge = `<span class="px-2 py-0.5 rounded-md text-xs bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">HDI</span>`;
+            if(i.produto === 'YELUM') prodBadge = `<span class="px-2 py-0.5 rounded-md text-xs bg-amber-100 text-amber-800 font-bold border border-amber-200">YELUM</span>`;
 
             document.getElementById('detailsContent').innerHTML = `
-                <div class="flex justify-between items-center mb-4 border-b pb-2">
-                    <span class="text-lg font-bold text-gray-800">#${i.assistencia}</span>
-                    <div>${prodBadge || '<span class="text-gray-400 italic">Sem produto</span>'}</div>
+                <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                    <div class="flex items-center gap-3">
+                         <div class="bg-indigo-100 p-2 rounded-lg text-indigo-600 font-bold text-xl">#${i.assistencia}</div>
+                         <div>
+                            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider">ID do Atendimento</p>
+                            <p class="text-slate-500 text-xs">${i.data || 'Data não inf.'}</p>
+                         </div>
+                    </div>
+                    <div>${prodBadge || '<span class="text-slate-300 text-xs italic">Sem produto</span>'}</div>
                 </div>
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">Prestador</p><p>${i.prestador}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">Local</p><p>${i.cidade || ''} - ${i.uf || ''}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">Serviço</p><p>${i.tipoServico || '-'}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">Status</p><p>${i.status}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">Motivo</p><p>${i.motivo}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">Analista</p><p>${i.analista}</p></div>
-                    <div><p class="text-xs text-gray-500 font-bold uppercase">Ação Rede</p><p>${i.acaoRede || '-'}</p></div>
+                
+                <div class="grid grid-cols-2 gap-y-6 gap-x-4 mb-6">
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Prestador</p>
+                        <p class="font-medium text-slate-800">${i.prestador}</p>
+                        <p class="text-xs text-slate-500">${i.fa ? `FA: ${i.fa}` : ''}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Localização</p>
+                        <p class="font-medium text-slate-800">${i.cidade || 'N/A'} - ${i.uf || 'UF'}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Serviço</p>
+                        <p class="font-medium text-slate-800">${i.tipoServico || '-'}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Status & Nota</p>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 font-semibold">${i.status}</span>
+                            <span class="font-bold text-indigo-600">NPS ${i.nota}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Motivo</p>
+                        <p class="font-medium text-slate-800">${i.motivo}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Analista</p>
+                        <p class="font-medium text-slate-800">${i.analista}</p>
+                    </div>
                 </div>
-                <div class="bg-indigo-50 p-4 rounded border border-indigo-100 mb-2">
-                    <p class="text-xs text-indigo-500 font-bold mb-2 uppercase flex items-center gap-1"><i data-lucide="message-circle" class="h-3 w-3"></i> Voz do Cliente</p>
-                    <p class="text-sm text-gray-800 leading-relaxed italic">"${i.vozDoCliente || 'Sem registro.'}"</p>
+
+                <div class="space-y-4">
+                    <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50">
+                        <p class="text-xs text-indigo-400 font-bold mb-2 uppercase flex items-center gap-1.5"><i data-lucide="message-circle" class="h-3.5 w-3.5"></i> Voz do Cliente</p>
+                        <p class="text-sm text-slate-700 leading-relaxed italic">"${i.vozDoCliente || 'Sem registro.'}"</p>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <p class="text-xs text-slate-400 font-bold mb-2 uppercase flex items-center gap-1.5"><i data-lucide="file-text" class="h-3.5 w-3.5"></i> Análise Técnica</p>
+                        <p class="text-sm text-slate-700 leading-relaxed">${i.comentario}</p>
+                    </div>
                 </div>
-                <div class="bg-gray-50 p-4 rounded border border-gray-200">
-                    <p class="text-xs text-gray-500 font-bold mb-2 uppercase">Comentário Técnico</p>
-                    <p class="text-sm text-gray-800 leading-relaxed">${i.comentario}</p>
-                </div>
+                
+                ${i.acaoRede ? `
+                <div class="mt-4 pt-4 border-t border-slate-100">
+                     <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Ação na Rede</p>
+                     <p class="text-sm font-medium text-emerald-700 bg-emerald-50 inline-block px-2 py-1 rounded">${i.acaoRede}</p>
+                </div>` : ''}
             `;
             document.getElementById('detailsModal').classList.remove('hidden');
             lucide.createIcons();
@@ -654,14 +770,25 @@
         window.openAuditModal = function() {
             const m = document.getElementById('auditModal');
             const b = document.getElementById('auditBody');
-            b.innerHTML = '<tr><td colspan="4" class="p-4 text-center">Carregando...</td></tr>';
+            b.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-400">Carregando histórico...</td></tr>';
             m.classList.remove('hidden');
             const q = query(collection(db, COLLECTION_LOGS), orderBy("timestamp", "desc"), limit(50));
             onSnapshot(q, (s) => {
-                b.innerHTML = s.empty ? '<tr><td colspan="4" class="p-4 text-center">Sem logs.</td></tr>' : '';
+                b.innerHTML = s.empty ? '<tr><td colspan="4" class="p-8 text-center text-slate-400">Sem logs recentes.</td></tr>' : '';
                 s.forEach(d => {
                     const l = d.data();
-                    b.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-3 text-xs text-gray-500">${new Date(l.timestamp).toLocaleString()}</td><td class="p-3 text-xs font-bold">${l.user}</td><td class="p-3 text-xs log-${l.action.split(' ')[0]}">${l.action}</td><td class="p-3 text-xs text-gray-600 truncate max-w-[200px]">${l.details}</td></tr>`;
+                    let actionClass = 'bg-slate-100 text-slate-600';
+                    if(l.action.includes('CREATE')) actionClass = 'bg-indigo-100 text-indigo-700';
+                    if(l.action.includes('DELETE')) actionClass = 'bg-rose-100 text-rose-700';
+                    if(l.action.includes('UPDATE')) actionClass = 'bg-amber-100 text-amber-700';
+
+                    b.innerHTML += `
+                        <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                            <td class="p-3 text-xs text-slate-400 font-mono">${new Date(l.timestamp).toLocaleString()}</td>
+                            <td class="p-3 text-xs font-bold text-slate-700">${l.user}</td>
+                            <td class="p-3"><span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${actionClass}">${l.action}</span></td>
+                            <td class="p-3 text-xs text-slate-500 truncate max-w-[200px]">${l.details}</td>
+                        </tr>`;
                 });
             });
         };
@@ -689,128 +816,174 @@
         });
     </script>
 </head>
-<body class="text-gray-800 h-screen flex flex-col overflow-hidden">
+<body class="text-slate-700 h-screen flex flex-col overflow-hidden bg-slate-50">
 
-    <!-- Login Modal -->
-    <div id="loginModal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900">
-        <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#6366f1 1px, transparent 1px); background-size: 24px 24px;"></div>
-        <div class="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl w-full max-w-md p-8 text-center animate-fade-in relative z-10 border border-white/20">
-            <div class="mb-8">
-                <div class="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
-                    <i data-lucide="shield-check" class="h-10 w-10 text-indigo-600"></i>
-                </div>
-                <h2 class="text-3xl font-extrabold text-gray-800 tracking-tight">Acesso ao Dashboard</h2>
-                <p class="text-gray-500 mt-2 text-sm font-medium">Gestão de Qualidade & NPS</p>
-            </div>
-            <div class="space-y-5 text-left">
-                <div class="relative group">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <i data-lucide="user" class="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
-                    </div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Analista</label>
-                    <input type="text" id="loginName" placeholder="Seu Nome Completo" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:border-transparent transition-all shadow-sm font-medium">
-                </div>
-                <div class="relative group">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none mt-6">
-                        <i data-lucide="key-round" class="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
-                    </div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Código de Acesso</label>
-                    <input type="password" id="loginPin" maxlength="4" placeholder="••••" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:border-transparent transition-all shadow-sm text-lg tracking-widest font-bold">
-                </div>
-                <button onclick="performLogin()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 mt-4">
-                    <span>Entrar no Sistema</span>
-                    <i data-lucide="arrow-right" class="h-5 w-5"></i>
-                </button>
-            </div>
-            <p class="mt-8 text-xs text-gray-400">Ambiente Seguro • Versão 4.3</p>
+    <!-- Login Modal (Modernized) -->
+    <div id="loginModal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm transition-all duration-500">
+        <div class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-10 overflow-hidden">
+             <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+             <div class="mb-8 text-center">
+                 <div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6 transform rotate-3 shadow-inner">
+                    <i data-lucide="shield-check" class="h-8 w-8 text-indigo-600"></i>
+                 </div>
+                 <h2 class="text-3xl font-extrabold text-slate-800 tracking-tight">NPS Cloud</h2>
+                 <p class="text-slate-400 mt-2 text-sm font-medium">Acesso Seguro ao Dashboard</p>
+             </div>
+             
+             <div class="space-y-5">
+                 <div class="group">
+                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5 ml-1">Analista</label>
+                     <div class="relative">
+                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-indigo-500 transition-colors">
+                             <i data-lucide="user" class="h-5 w-5"></i>
+                         </div>
+                         <input type="text" id="loginName" placeholder="Seu Nome" class="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium placeholder-slate-300">
+                     </div>
+                 </div>
+                 
+                 <div class="group">
+                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5 ml-1">Pin de Acesso</label>
+                     <div class="relative">
+                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-indigo-500 transition-colors">
+                             <i data-lucide="lock" class="h-5 w-5"></i>
+                         </div>
+                         <input type="password" id="loginPin" maxlength="4" placeholder="••••" class="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-lg tracking-widest font-bold placeholder-slate-300">
+                     </div>
+                 </div>
+
+                 <button onclick="performLogin()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 mt-4">
+                    <span>Entrar</span>
+                    <i data-lucide="arrow-right" class="h-4 w-4 opacity-70"></i>
+                 </button>
+             </div>
+             
+             <div class="mt-8 text-center">
+                <p class="text-xs text-slate-300">Versão 4.4 • Build 2026</p>
+             </div>
         </div>
     </div>
 
     <!-- Modals -->
-    <div id="confirmModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4"><div class="bg-white rounded-xl p-6 text-center w-full max-w-sm"><h3 class="font-bold text-lg mb-4">Confirmar?</h3><p id="confirmText" class="mb-6 text-sm text-gray-500"></p><div class="flex gap-2 justify-center"><button onclick="closeModal('confirmModal')" class="px-4 py-2 bg-gray-200 rounded">Cancelar</button><button id="confirmBtnAction" class="px-4 py-2 bg-red-600 text-white rounded">Confirmar</button></div></div></div>
-    <div id="auditModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4"><div class="bg-white rounded-xl w-full max-w-2xl flex flex-col max-h-[80vh]"><div class="p-4 border-b flex justify-between font-bold"><span>Histórico</span><button onclick="closeModal('auditModal')">X</button></div><div class="overflow-auto flex-grow"><table class="w-full"><thead class="bg-gray-50 text-xs text-gray-500"><tr><th class="p-3">Data</th><th class="p-3">Usuário</th><th class="p-3">Ação</th><th class="p-3">Detalhes</th></tr></thead><tbody id="auditBody"></tbody></table></div></div></div>
-    <div id="detailsModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4"><div class="bg-white rounded-xl w-full max-w-2xl flex flex-col max-h-[90vh]"><div class="p-4 border-b flex justify-between font-bold"><span>Detalhes</span><button onclick="closeModal('detailsModal')">X</button></div><div class="p-6 overflow-auto" id="detailsContent"></div></div></div>
-
-    <!-- Form Modal -->
-    <div id="formModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
-            <div class="px-6 py-4 bg-indigo-600 text-white flex justify-between items-center flex-none">
-                <h3 class="font-bold flex items-center gap-2" id="formModalTitle">Registro</h3>
-                <button onclick="closeModal('formModal')" class="text-indigo-200 hover:text-white"><i data-lucide="x" class="h-6 w-6"></i></button>
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 fade-in">
+        <div class="bg-white rounded-2xl p-8 text-center w-full max-w-sm shadow-2xl border border-white/20">
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-triangle" class="h-6 w-6 text-red-500"></i>
             </div>
-            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 overflow-y-auto custom-scroll flex-grow">
+            <h3 class="font-bold text-lg mb-2 text-slate-800">Confirmar Ação?</h3>
+            <p id="confirmText" class="mb-6 text-sm text-slate-500">Essa ação não poderá ser desfeita.</p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="closeModal('confirmModal')" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-medium transition-colors">Cancelar</button>
+                <button id="confirmBtnAction" class="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium shadow-lg shadow-red-500/30 transition-all">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Modal -->
+    <div id="auditModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 fade-in">
+        <div class="bg-white rounded-2xl w-full max-w-2xl flex flex-col max-h-[80vh] shadow-2xl border border-slate-100 overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <span class="font-bold text-slate-700 flex items-center gap-2"><i data-lucide="history" class="h-5 w-5 text-indigo-500"></i> Log de Auditoria</span>
+                <button onclick="closeModal('auditModal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="h-5 w-5"></i></button>
+            </div>
+            <div class="overflow-auto flex-grow custom-scroll bg-white">
+                <table class="w-full">
+                    <thead class="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider sticky top-0 z-10">
+                        <tr><th class="p-3 text-left pl-6">Data</th><th class="p-3 text-left">Usuário</th><th class="p-3 text-left">Ação</th><th class="p-3 text-left">Detalhes</th></tr>
+                    </thead>
+                    <tbody id="auditBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div id="detailsModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 fade-in">
+        <div class="bg-white rounded-2xl w-full max-w-2xl flex flex-col max-h-[90vh] shadow-2xl border border-white/20 overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
+                <span class="font-bold text-lg text-slate-800">Detalhes do Registro</span>
+                <button onclick="closeModal('detailsModal')" class="bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors"><i data-lucide="x" class="h-5 w-5 text-slate-500"></i></button>
+            </div>
+            <div class="p-8 overflow-y-auto custom-scroll" id="detailsContent"></div>
+        </div>
+    </div>
+
+    <!-- Form Modal (Refined) -->
+    <div id="formModal" class="fixed inset-0 bg-slate-900/60 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in flex flex-col max-h-[90vh] border border-slate-200">
+            <div class="px-6 py-5 bg-white border-b border-slate-100 flex justify-between items-center flex-none">
+                <h3 class="font-bold text-xl text-slate-800 flex items-center gap-2" id="formModalTitle">Registro</h3>
+                <button onclick="closeModal('formModal')" class="bg-slate-50 p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors"><i data-lucide="x" class="h-5 w-5"></i></button>
+            </div>
+            <form id="recordForm" onsubmit="handleFormSubmit(event)" class="p-6 space-y-5 overflow-y-auto custom-scroll flex-grow bg-white">
                 <input type="hidden" id="firebaseId"><input type="hidden" id="editIndex"><input type="hidden" id="inpProduto">
                 
-                <!-- Alert Area (Para mensagens inteligentes) -->
                 <div id="formAlerts" class="mb-2"></div>
 
-                <!-- Product Selection -->
-                <div class="mb-4">
-                    <label class="block text-xs font-bold text-gray-700 mb-2 uppercase">Produto (Seguradora)</label>
+                <div class="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <label class="block text-xs font-bold text-slate-500 mb-3 uppercase tracking-wide text-center">Selecione o Produto</label>
                     <div class="grid grid-cols-2 gap-4">
-                        <button type="button" id="btnHDI" onclick="selectProduct('HDI')" class="btn-prod btn-hdi py-3 rounded-lg flex items-center justify-center gap-2">
+                        <button type="button" id="btnHDI" onclick="selectProduct('HDI')" class="btn-prod btn-hdi py-3.5 rounded-xl flex items-center justify-center gap-2 font-medium text-slate-600 bg-white">
                             HDI
                         </button>
-                        <button type="button" id="btnYelum" onclick="selectProduct('YELUM')" class="btn-prod btn-yelum py-3 rounded-lg flex items-center justify-center gap-2">
+                        <button type="button" id="btnYelum" onclick="selectProduct('YELUM')" class="btn-prod btn-yelum py-3.5 rounded-xl flex items-center justify-center gap-2 font-medium text-slate-600 bg-white">
                              YELUM
                         </button>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-5">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">ID Assistência</label>
-                        <input type="number" id="inpAssistencia" required class="w-full border p-2 rounded text-sm bg-gray-50 focus:border-indigo-500 focus:bg-white transition-colors">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">ID Assistência</label>
+                        <input type="number" id="inpAssistencia" required class="w-full border border-slate-200 p-2.5 rounded-lg text-sm bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Data</label>
-                        <input type="text" id="inpData" placeholder="DD/MM/AAAA" class="w-full border p-2 rounded text-sm">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Data</label>
+                        <input type="text" id="inpData" placeholder="DD/MM/AAAA" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:border-indigo-500 outline-none">
                     </div>
                 </div>
                 
-                <!-- Location -->
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid grid-cols-3 gap-5">
                     <div class="col-span-2">
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Cidade</label>
-                        <input type="text" id="inpCidade" class="w-full border p-2 rounded text-sm">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Cidade</label>
+                        <input type="text" id="inpCidade" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:border-indigo-500 outline-none">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">UF</label>
-                        <input type="text" id="inpUF" maxlength="2" placeholder="SP" class="w-full border p-2 rounded text-sm uppercase">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">UF</label>
+                        <input type="text" id="inpUF" maxlength="2" placeholder="SP" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm uppercase text-center focus:border-indigo-500 outline-none">
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-5">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Nota NPS</label>
-                        <input type="number" id="inpNota" required min="0" max="10" class="w-full border p-2 rounded text-sm">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Nota NPS</label>
+                        <input type="number" id="inpNota" required min="0" max="10" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:border-indigo-500 outline-none">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Analista</label>
-                        <input type="text" id="inpAnalista" readonly class="w-full border p-2 rounded text-sm bg-gray-100 text-gray-500">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Analista</label>
+                        <input type="text" id="inpAnalista" readonly class="w-full border border-slate-200 p-2.5 rounded-lg text-sm bg-slate-100 text-slate-500">
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-5">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Cód. FA</label>
-                        <input type="text" id="inpFA" class="w-full border p-2 rounded text-sm">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Cód. FA</label>
+                        <input type="text" id="inpFA" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:border-indigo-500 outline-none">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Prestador</label>
-                        <input type="text" id="inpPrestador" class="w-full border p-2 rounded text-sm focus:border-indigo-500 transition-colors">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Prestador</label>
+                        <input type="text" id="inpPrestador" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:border-indigo-500 outline-none">
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Tipo de Serviço</label>
-                    <input type="text" id="inpTipoServico" placeholder="Ex: Linha Branca" class="w-full border p-2 rounded text-sm">
+                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Tipo de Serviço</label>
+                    <input type="text" id="inpTipoServico" placeholder="Ex: Linha Branca" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:border-indigo-500 outline-none">
                 </div>
                 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-5">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Status</label>
-                        <select id="inpStatus" class="w-full border p-2 rounded text-sm bg-white">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Status</label>
+                        <select id="inpStatus" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none">
                             <option value="Procedente">Procedente</option>
                             <option value="Improcedente">Improcedente</option>
                             <option value="Neutra">Neutra</option>
@@ -818,8 +991,8 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Motivo</label>
-                        <select id="inpMotivo" class="w-full border p-2 rounded text-sm bg-white">
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Motivo</label>
+                        <select id="inpMotivo" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none">
                             <option value="">Selecione...</option>
                             <option value="Visita não realizada">Visita não realizada</option>
                             <option value="Demora no envio do orçamento">Demora no envio do orçamento</option>
@@ -840,95 +1013,144 @@
                     </div>
                 </div>
 
-                <!-- NOVO CAMPO: VOZ DO CLIENTE -->
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase flex items-center gap-1">
-                        <i data-lucide="message-circle" class="h-3 w-3 text-indigo-600"></i> Voz do Cliente
+                <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                    <label class="block text-xs font-bold text-indigo-500 mb-1.5 uppercase ml-1 flex items-center gap-1.5">
+                        <i data-lucide="message-circle" class="h-3.5 w-3.5"></i> Voz do Cliente
                     </label>
-                    <textarea id="inpVozCliente" rows="2" placeholder="O que o cliente disse exatamente?" class="w-full border p-2 rounded text-sm resize-none bg-indigo-50/50 border-indigo-200 focus:bg-white transition-colors"></textarea>
+                    <textarea id="inpVozCliente" rows="2" placeholder="O que o cliente disse exatamente?" class="w-full border border-indigo-200 p-2.5 rounded-lg text-sm resize-none bg-white focus:border-indigo-500 outline-none transition-all placeholder-indigo-200"></textarea>
                 </div>
                 
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Comentário Técnico</label>
-                    <textarea id="inpComentario" rows="3" class="w-full border p-2 rounded text-sm resize-none"></textarea>
+                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Comentário Técnico</label>
+                    <textarea id="inpComentario" rows="3" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm resize-none focus:border-indigo-500 outline-none"></textarea>
                 </div>
                 
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 mb-1 uppercase">Ação na Rede</label>
-                    <input type="text" id="inpAcao" class="w-full border p-2 rounded text-sm">
+                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Ação na Rede</label>
+                    <input type="text" id="inpAcao" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:border-indigo-500 outline-none">
                 </div>
                 
-                <button type="submit" class="w-full bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 font-bold shadow-md">Salvar Registro</button>
+                <div class="pt-2">
+                    <button type="submit" class="w-full bg-slate-900 text-white p-3.5 rounded-xl hover:bg-slate-800 font-bold shadow-lg shadow-slate-300 transform transition-all hover:-translate-y-0.5">Salvar Registro</button>
+                </div>
             </form>
         </div>
     </div>
 
     <!-- Toast -->
-    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3"></div>
+    <div id="toast-container" class="fixed top-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none"></div>
 
     <!-- Nav -->
-    <nav class="bg-indigo-900 text-white shadow-lg z-30 flex-none">
-        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <div class="bg-indigo-700 p-2 rounded-lg"><i data-lucide="cloud" class="h-6 w-6 text-green-400"></i></div>
+    <nav class="bg-slate-900 text-white shadow-xl z-30 flex-none sticky top-0 border-b border-white/10">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <div class="bg-white/10 p-2.5 rounded-xl backdrop-blur-sm border border-white/5 shadow-inner">
+                    <i data-lucide="cloud" class="h-6 w-6 text-indigo-400"></i>
+                </div>
                 <div>
-                    <h1 class="text-lg font-bold tracking-wide">NPS Cloud 4.3</h1>
-                    <p class="text-xs text-indigo-300 flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> Online</p>
+                    <h1 class="text-xl font-bold tracking-tight text-white">NPS Cloud <span class="text-indigo-400 font-light">4.4</span></h1>
+                    <p class="text-[10px] text-slate-400 flex items-center gap-1.5 uppercase tracking-wider font-semibold"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span> Online System</p>
                 </div>
             </div>
             <div class="flex items-center space-x-3">
-                <button onclick="openAuditModal()" class="flex items-center space-x-2 bg-indigo-800 hover:bg-indigo-700 px-3 py-1.5 rounded-lg text-xs border border-indigo-700 text-indigo-100"><i data-lucide="history" class="h-4 w-4"></i>Logs</button>
-                <div class="h-6 w-px bg-indigo-700 mx-1"></div>
-                <button onclick="downloadTemplate()" class="hidden md:flex items-center space-x-2 bg-indigo-800 hover:bg-indigo-700 px-3 py-1.5 rounded-lg text-xs border border-indigo-700 text-indigo-100"><i data-lucide="download" class="h-4 w-4"></i>Modelo</button>
-                <button onclick="exportToExcel()" class="hidden md:flex items-center space-x-2 bg-green-700 hover:bg-green-600 px-3 py-1.5 rounded-lg text-xs shadow-sm border border-green-600"><i data-lucide="file-spreadsheet" class="h-4 w-4"></i>Excel</button>
-                <div class="h-8 w-1 bg-indigo-700 mx-2"></div>
-                <button onclick="logout()" class="flex items-center space-x-2 bg-red-800/80 hover:bg-red-700 px-3 py-1.5 rounded-lg text-xs" title="Sair"><i data-lucide="log-out" class="h-4 w-4"></i></button>
-                <div id="userNameDisplay" class="h-9 w-9 rounded-full bg-indigo-500 flex items-center justify-center border-2 border-indigo-400 font-bold text-xs cursor-help">--</div>
+                <button onclick="openAuditModal()" class="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg text-xs font-medium border border-slate-700 text-slate-200 transition-colors"><i data-lucide="history" class="h-4 w-4 text-indigo-400"></i><span class="hidden md:inline">Logs</span></button>
+                
+                <div class="h-6 w-px bg-slate-700 mx-1"></div>
+                
+                <button onclick="downloadTemplate()" class="hidden md:flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg text-xs font-medium border border-slate-700 text-slate-200 transition-colors"><i data-lucide="download" class="h-4 w-4 text-indigo-400"></i><span>Modelo</span></button>
+                <button onclick="exportToExcel()" class="hidden md:flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 px-3 py-2 rounded-lg text-xs font-medium shadow-lg shadow-emerald-900/20 border border-emerald-500 transition-all transform hover:-translate-y-0.5"><i data-lucide="file-spreadsheet" class="h-4 w-4"></i><span>Excel</span></button>
+                
+                <div class="h-8 w-1 bg-slate-700 mx-2 rounded-full"></div>
+                
+                <button onclick="logout()" class="flex items-center justify-center w-9 h-9 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-lg transition-colors border border-rose-500/20" title="Sair"><i data-lucide="log-out" class="h-4 w-4"></i></button>
+                <div id="userNameDisplay" class="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center border-2 border-indigo-400/30 font-bold text-sm shadow-lg text-white cursor-help">--</div>
             </div>
         </div>
     </nav>
 
     <!-- Content -->
-    <main class="container mx-auto px-4 py-6 flex-grow overflow-y-auto custom-scroll">
-        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2"><i data-lucide="layout-dashboard" class="h-5 w-5 text-indigo-600"></i>Visão Estratégica</h2>
-            <div class="flex space-x-2 w-full md:w-auto">
-                <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelUpload(event)">
-                <button id="btnDeleteSelected" onclick="confirmBatchDelete()" class="hidden flex items-center bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-bold border border-red-200"><i data-lucide="trash-2" class="h-4 w-4 mr-2"></i><span id="selectedCountText">Excluir</span></button>
-                <button onclick="document.getElementById('excelInput').click()" class="flex items-center bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium shadow-sm"><i data-lucide="upload-cloud" class="h-4 w-4 mr-2 text-indigo-600"></i>Importar</button>
-                <button onclick="openFormModal()" class="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-md"><i data-lucide="plus-circle" class="h-4 w-4 mr-2"></i>Novo Registro</button>
+    <main class="container mx-auto px-6 py-8 flex-grow overflow-y-auto custom-scroll">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-6">
+            <div>
+                 <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-3"><i data-lucide="layout-dashboard" class="h-6 w-6 text-indigo-600"></i>Visão Estratégica</h2>
+                 <p class="text-sm text-slate-500 mt-1 pl-9">Monitoramento de qualidade e performance em tempo real.</p>
             </div>
-        </div>
-
-        <!-- Dashboard KPIs (Grid de 3 colunas, ajustado para v4.1) -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-gray-400 flex flex-col justify-between"><div class="flex justify-between"><p class="text-xs text-gray-500 font-bold uppercase">Total</p><i data-lucide="file-text" class="h-5 w-5 text-gray-300"></i></div><h3 class="text-3xl font-bold mt-2" id="kpi-total">0</h3></div>
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500 flex flex-col justify-between"><div class="flex justify-between"><p class="text-xs text-gray-500 font-bold uppercase">Procedentes</p><span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded font-bold" id="kpi-procedente-pct">0%</span></div><h3 class="text-3xl font-bold mt-2 text-red-600" id="kpi-procedente">0</h3></div>
             
-            <!-- KPI: Principal Ofensor -->
-            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-purple-500 flex flex-col justify-between">
-                <div class="flex justify-between">
-                    <p class="text-xs text-gray-500 font-bold uppercase">Principal Ofensor</p>
-                    <i data-lucide="thumbs-down" class="h-5 w-5 text-purple-500"></i>
+            <div class="flex space-x-3 w-full md:w-auto bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
+                <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelUpload(event)">
+                <button id="btnDeleteSelected" onclick="confirmBatchDelete()" class="hidden flex items-center bg-rose-50 text-rose-600 px-4 py-2 rounded-xl text-sm font-bold border border-rose-100 hover:bg-rose-100 transition-colors"><i data-lucide="trash-2" class="h-4 w-4 mr-2"></i><span id="selectedCountText">Excluir</span></button>
+                
+                <button onclick="document.getElementById('excelInput').click()" class="flex items-center text-slate-600 hover:bg-slate-50 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"><i data-lucide="upload-cloud" class="h-4 w-4 mr-2 text-indigo-500"></i>Importar</button>
+                <button onclick="openFormModal()" class="flex items-center bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-slate-300 transition-all transform hover:scale-105"><i data-lucide="plus" class="h-4 w-4 mr-2"></i>Novo Registro</button>
+            </div>
+        </div>
+
+        <!-- Dashboard KPIs (Modern Cards) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="card-modern p-6 relative overflow-hidden group">
+                <div class="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-indigo-50 to-transparent opacity-50"></div>
+                <div class="flex justify-between items-start relative z-10">
+                    <div>
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Total Geral</p>
+                        <h3 class="text-4xl font-extrabold text-slate-800 tracking-tight" id="kpi-total">0</h3>
+                    </div>
+                    <div class="bg-indigo-50 p-3 rounded-2xl text-indigo-600 group-hover:scale-110 transition-transform"><i data-lucide="layers" class="h-6 w-6"></i></div>
                 </div>
-                <div>
-                    <h3 class="text-lg font-bold mt-2 text-purple-700 truncate" id="kpi-offender-name">---</h3>
-                    <p class="text-xs text-gray-400 font-medium" id="kpi-offender-count">Sem dados</p>
+            </div>
+
+            <div class="card-modern p-6 relative overflow-hidden group border-l-4 border-l-rose-500">
+                <div class="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-rose-50 to-transparent opacity-50"></div>
+                <div class="flex justify-between items-start relative z-10">
+                    <div>
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Procedentes</p>
+                        <div class="flex items-baseline gap-2">
+                             <h3 class="text-4xl font-extrabold text-rose-600 tracking-tight" id="kpi-procedente">0</h3>
+                             <span class="text-xs font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md" id="kpi-procedente-pct">0%</span>
+                        </div>
+                    </div>
+                    <div class="bg-rose-50 p-3 rounded-2xl text-rose-500 group-hover:scale-110 transition-transform"><i data-lucide="alert-circle" class="h-6 w-6"></i></div>
+                </div>
+            </div>
+            
+            <div class="card-modern p-6 relative overflow-hidden group">
+                <div class="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-amber-50 to-transparent opacity-50"></div>
+                <div class="flex justify-between items-start relative z-10">
+                    <div class="flex-1 min-w-0 pr-4">
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Principal Ofensor</p>
+                        <h3 class="text-xl font-bold text-slate-800 truncate leading-tight mt-1" id="kpi-offender-name">---</h3>
+                        <p class="text-xs text-slate-500 font-medium mt-1" id="kpi-offender-count">Sem dados</p>
+                    </div>
+                    <div class="bg-amber-50 p-3 rounded-2xl text-amber-500 group-hover:scale-110 transition-transform flex-none"><i data-lucide="flag" class="h-6 w-6"></i></div>
                 </div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6 flex justify-between"><span><i data-lucide="bar-chart-2" class="h-4 w-4 inline mr-2"></i> Top 5 Motivos (+ Outros)</span><button onclick="clearChartFilter()" class="text-xs text-indigo-600 underline">Limpar</button></h3><div class="chart-container" style="height: 280px;"><canvas id="chartMotivos"></canvas></div></div>
-            <div class="bg-white p-6 rounded-xl card-shadow border border-gray-100"><h3 class="text-sm font-bold uppercase text-gray-500 mb-6"><i data-lucide="alert-triangle" class="h-4 w-4 inline mr-2"></i> Bases Ofensoras (Procedentes)</h3><div class="chart-container" style="height: 280px;"><canvas id="chartPrestadores"></canvas></div></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <div class="card-modern p-6 flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-sm font-bold uppercase text-slate-500 tracking-wide flex items-center gap-2"><i data-lucide="bar-chart-2" class="h-4 w-4 text-indigo-500"></i> Top 5 Motivos</h3>
+                    <button onclick="clearChartFilter()" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded transition-colors uppercase tracking-wide">Limpar Filtro</button>
+                </div>
+                <div class="chart-container flex-grow" style="height: 280px;"><canvas id="chartMotivos"></canvas></div>
+            </div>
+            
+            <div class="card-modern p-6 flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-sm font-bold uppercase text-slate-500 tracking-wide flex items-center gap-2"><i data-lucide="alert-octagon" class="h-4 w-4 text-rose-500"></i> Ofensores (Procedentes)</h3>
+                </div>
+                <div class="chart-container flex-grow" style="height: 280px;"><canvas id="chartPrestadores"></canvas></div>
+            </div>
         </div>
 
-        <div class="bg-white rounded-xl card-shadow overflow-hidden mb-8 border border-gray-200">
-            <div class="p-5 border-b border-gray-100 bg-gray-50">
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                    <div class="md:col-span-5 relative"><i data-lucide="search" class="absolute left-3 top-2.5 h-4 w-4 text-gray-400"></i><input type="text" id="searchInput" placeholder="Buscar..." class="w-full pl-10 pr-4 py-2 rounded-lg border text-sm"></div>
+        <div class="card-modern overflow-hidden mb-8 flex flex-col h-[600px]">
+            <div class="p-5 border-b border-slate-100 bg-white sticky top-0 z-20">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                    <div class="md:col-span-5 relative group">
+                        <i data-lucide="search" class="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors"></i>
+                        <input type="text" id="searchInput" placeholder="Buscar por ID, Prestador, Cidade..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-sm transition-all shadow-sm">
+                    </div>
                     <div class="md:col-span-2">
-                        <select id="filterStatus" class="w-full py-2 px-3 rounded-lg border text-sm">
+                        <select id="filterStatus" class="w-full py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-sm outline-none focus:border-indigo-500 transition-all cursor-pointer">
                             <option value="">Todos Status</option>
                             <option value="Em Análise">Em Análise</option>
                             <option value="Procedente">Procedente</option>
@@ -936,23 +1158,41 @@
                             <option value="Neutra">Neutra</option>
                         </select>
                     </div>
-                    <!-- Filtro por Nota (Adicionado) -->
                     <div class="md:col-span-2">
-                         <input type="number" id="filterNota" min="0" max="10" placeholder="Nota (0-10)" class="w-full py-2 px-3 rounded-lg border text-sm">
+                         <input type="number" id="filterNota" min="0" max="10" placeholder="Nota (0-10)" class="w-full py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-sm outline-none focus:border-indigo-500 transition-all">
                     </div>
-                    <div class="md:col-span-3 flex gap-2"><input type="date" id="filterDateStart" class="w-full text-sm border p-2 rounded-lg"><input type="date" id="filterDateEnd" class="w-full text-sm border p-2 rounded-lg"></div>
+                    <div class="md:col-span-3 flex gap-2">
+                        <input type="date" id="filterDateStart" class="w-full text-xs border border-slate-200 bg-slate-50 rounded-xl p-2 outline-none focus:border-indigo-500">
+                        <input type="date" id="filterDateEnd" class="w-full text-xs border border-slate-200 bg-slate-50 rounded-xl p-2 outline-none focus:border-indigo-500">
+                    </div>
                 </div>
             </div>
-            <div class="overflow-x-auto custom-scroll relative min-h-[300px]">
-                <div id="loadingIndicator" class="absolute inset-0 bg-white/90 z-20 flex flex-col items-center justify-center font-bold text-gray-500"><i data-lucide="loader-2" class="animate-spin h-8 w-8 mb-2 text-indigo-600"></i><span>Sincronizando...</span></div>
+            
+            <div class="overflow-auto custom-scroll relative flex-grow bg-white">
+                <div id="loadingIndicator" class="absolute inset-0 bg-white/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center font-bold text-slate-500 fade-in"><i data-lucide="loader-2" class="animate-spin h-8 w-8 mb-3 text-indigo-600"></i><span>Sincronizando dados...</span></div>
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-100 text-gray-600 text-xs uppercase font-bold sticky top-0 z-10 shadow-sm">
-                        <tr><th class="p-4 w-10 text-center"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('assistencia')">ID <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('data')">Data <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4">Nota</th><th class="p-4">Local</th><th class="p-4">FA / Prestador</th><th class="p-4">Serviço</th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('status')">Status <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4 cursor-pointer hover:bg-gray-200" onclick="window.sortTable('analista')">Analista <i data-lucide="arrow-up-down" class="sort-icon"></i></th><th class="p-4 text-right">Ações</th></tr>
+                    <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-bold sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            <th class="p-4 w-12 text-center border-b border-slate-200"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="custom-checkbox"></th>
+                            <th class="p-4 cursor-pointer hover:text-indigo-600 border-b border-slate-200 transition-colors" onclick="window.sortTable('assistencia')">ID <i data-lucide="arrow-up-down" class="sort-icon inline align-middle"></i></th>
+                            <th class="p-4 cursor-pointer hover:text-indigo-600 border-b border-slate-200 transition-colors" onclick="window.sortTable('data')">Data <i data-lucide="arrow-up-down" class="sort-icon inline align-middle"></i></th>
+                            <th class="p-4 border-b border-slate-200">Nota</th>
+                            <th class="p-4 border-b border-slate-200">Local</th>
+                            <th class="p-4 border-b border-slate-200">FA / Prestador</th>
+                            <th class="p-4 border-b border-slate-200">Serviço</th>
+                            <th class="p-4 cursor-pointer hover:text-indigo-600 border-b border-slate-200 transition-colors" onclick="window.sortTable('status')">Status <i data-lucide="arrow-up-down" class="sort-icon inline align-middle"></i></th>
+                            <th class="p-4 cursor-pointer hover:text-indigo-600 border-b border-slate-200 transition-colors" onclick="window.sortTable('analista')">Analista <i data-lucide="arrow-up-down" class="sort-icon inline align-middle"></i></th>
+                            <th class="p-4 text-right border-b border-slate-200">Ações</th>
+                        </tr>
                     </thead>
-                    <tbody id="tableBody" class="text-sm divide-y divide-gray-100 bg-white"></tbody>
+                    <tbody id="tableBody" class="text-sm divide-y divide-slate-50 bg-white"></tbody>
                 </table>
             </div>
-            <div class="p-4 border-t border-gray-100 text-center bg-gray-50 flex flex-col items-center"><p class="text-xs text-gray-500 mb-2 font-medium" id="showingCount">Carregando...</p><button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hidden px-6 py-2 border rounded-full bg-white shadow-sm">Carregar Mais</button></div>
+            
+            <div class="p-4 border-t border-slate-100 text-center bg-slate-50 flex flex-col items-center justify-center flex-none">
+                <p class="text-xs text-slate-400 mb-3 font-medium" id="showingCount">Carregando...</p>
+                <button id="loadMoreBtn" onclick="loadMore()" class="text-indigo-600 text-xs font-bold hidden px-6 py-2.5 border border-indigo-200 hover:bg-indigo-50 rounded-full bg-white shadow-sm transition-all hover:-translate-y-0.5">Carregar Mais Registros</button>
+            </div>
         </div>
     </main>
 </body>
