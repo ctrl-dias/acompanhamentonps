@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 4.6 - Gestão Eficiente</title>
+    <title>Dashboard NPS 4.7 - Gestão Eficiente</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -356,8 +356,12 @@
         function refreshCharts() {
             const m = {}; const p = {};
             
+            // FILTRAR APENAS PROCEDENTES PARA O GRÁFICO DE MOTIVOS
+            const procedentesData = npsData.filter(d => d.status === 'Procedente');
+
             // Normalizar os motivos para evitar duplicidade de strings sujas
-            npsData.forEach(d => { 
+            // Usamos procedentesData aqui
+            procedentesData.forEach(d => { 
                 const motivo = (d.motivo || 'Outros').trim();
                 m[motivo] = (m[motivo]||0)+1; 
             });
@@ -381,9 +385,8 @@
                 finalMotivosData.push(outrosCount);
             }
 
-            // Bases Ofensoras (Procedentes)
-            const procedentes = npsData.filter(d => d.status === 'Procedente');
-            procedentes.forEach(d => { const prest = d.prestador || 'Desconhecido'; p[prest] = (p[prest]||0)+1; });
+            // Bases Ofensoras (Também Procedentes - Já estava assim na lógica anterior mas reforçando)
+            procedentesData.forEach(d => { const prest = d.prestador || 'Desconhecido'; p[prest] = (p[prest]||0)+1; });
             const topP = Object.entries(p).sort((a,b) => b[1] - a[1]).slice(0, 10);
             
             // Cores Modernas
@@ -778,7 +781,11 @@
 
         window.performLogin = function() {
             const n = document.getElementById('loginName').value;
+            const p = document.getElementById('loginPin').value;
             if(!n) return alert("Nome obrigatório");
+            // Simple PIN check for demo purposes
+            if(p !== "1234") return alert("Pin incorreto (Dica: 1234)");
+            
             currentAnalista = n;
             localStorage.setItem('nps_user_name', n);
             document.getElementById('loginModal').classList.add('hidden');
@@ -841,7 +848,7 @@
              </div>
              
              <div class="mt-8 text-center">
-                <p class="text-xs text-slate-300">Versão 4.6 • Build 2026</p>
+                <p class="text-xs text-slate-300">Versão 4.7 • Build 2026</p>
              </div>
         </div>
     </div>
@@ -1031,7 +1038,7 @@
                     <i data-lucide="cloud" class="h-6 w-6 text-indigo-400"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight text-white">NPS Cloud <span class="text-indigo-400 font-light">4.6</span></h1>
+                    <h1 class="text-xl font-bold tracking-tight text-white">NPS Cloud <span class="text-indigo-400 font-light">4.7</span></h1>
                     <p class="text-[10px] text-slate-400 flex items-center gap-1.5 uppercase tracking-wider font-semibold"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span> Online System</p>
                 </div>
             </div>
@@ -1114,7 +1121,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <div class="card-modern p-6 flex flex-col">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-sm font-bold uppercase text-slate-500 tracking-wide flex items-center gap-2"><i data-lucide="bar-chart-2" class="h-4 w-4 text-indigo-500"></i> Top 5 Motivos</h3>
+                    <h3 class="text-sm font-bold uppercase text-slate-500 tracking-wide flex items-center gap-2"><i data-lucide="bar-chart-2" class="h-4 w-4 text-indigo-500"></i> Top 5 Motivos (Procedentes)</h3>
                     <button onclick="clearChartFilter()" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded transition-colors uppercase tracking-wide">Limpar Filtro</button>
                 </div>
                 <div class="chart-container flex-grow" style="height: 280px;"><canvas id="chartMotivos"></canvas></div>
