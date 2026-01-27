@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 4.4 - Visual Moderno</title>
+    <title>Dashboard NPS 4.6 - Gestão Eficiente</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -98,18 +98,6 @@
         .btn-yelum.selected { 
             background: linear-gradient(135deg, #fef9c3 0%, #fde047 100%); 
             color: #713f12; 
-        }
-
-        /* Glassmorphism Utilities */
-        .glass {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-        }
-        .glass-dark {
-            background: rgba(15, 23, 42, 0.9);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
         }
     </style>
 
@@ -252,26 +240,16 @@
         function refreshKPIs() {
             const total = npsData.length;
             const procedentes = npsData.filter(d => d.status === 'Procedente').length;
-            const rede = npsData.filter(d => d.acaoRede && d.acaoRede !== 'Nenhuma').length;
-            const prom = npsData.filter(d => d.nota >= 9).length;
-            const det = npsData.filter(d => d.nota <= 6).length;
-            const npsScore = total > 0 ? Math.round(((prom - det) / total) * 100) : 0;
+            const improcedentes = npsData.filter(d => d.status === 'Improcedente').length; // Nova Métrica
 
-            const offenderMap = {};
-            npsData.filter(d => d.status === 'Procedente').forEach(d => {
-                const n = d.prestador || 'N/D';
-                offenderMap[n] = (offenderMap[n] || 0) + 1;
-            });
-            const sortedOffenders = Object.entries(offenderMap).sort((a,b) => b[1] - a[1]);
-            const topOffenderName = sortedOffenders.length > 0 ? sortedOffenders[0][0] : '---';
-            const topOffenderCount = sortedOffenders.length > 0 ? sortedOffenders[0][1] : 0;
-
+            // KPI 1 & 2
             document.getElementById('kpi-total').textContent = total;
             document.getElementById('kpi-procedente').textContent = procedentes;
             document.getElementById('kpi-procedente-pct').textContent = total ? Math.round((procedentes/total)*100) + '%' : '0%';
             
-            document.getElementById('kpi-offender-name').textContent = topOffenderName;
-            document.getElementById('kpi-offender-count').textContent = topOffenderCount > 0 ? `${topOffenderCount} casos` : 'Sem dados';
+            // KPI 3: Improcedentes
+            document.getElementById('kpi-improcedente').textContent = improcedentes;
+            document.getElementById('kpi-improcedente-pct').textContent = total ? Math.round((improcedentes/total)*100) + '%' : '0%';
         }
 
         function getFilteredData() {
@@ -639,7 +617,12 @@
             r.onload = async function(evt) {
                 try {
                     const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
-                    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                    // Adicionado { defval: "" } para garantir que linhas com células vazias não sejam ignoradas
+                    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+                    
+                    // Log para depuração de contagem
+                    console.log(`Linhas encontradas no Excel: ${rows.length}`);
+                    
                     if(!rows.length) { showToast("Vazio.", "warning"); return; }
                     showToast(`Importando ${rows.length}...`, "info");
                     const promises = rows.map(r => {
@@ -665,7 +648,7 @@
                     await Promise.all(promises);
                     logAudit('IMPORT', `Importou ${rows.length} registros.`);
                     showToast("Sucesso!", "success");
-                } catch(err) { showToast("Erro importação.", "warning"); }
+                } catch(err) { console.error(err); showToast("Erro importação.", "warning"); }
             };
             r.readAsArrayBuffer(f);
             e.target.value = '';
@@ -858,7 +841,7 @@
              </div>
              
              <div class="mt-8 text-center">
-                <p class="text-xs text-slate-300">Versão 4.4 • Build 2026</p>
+                <p class="text-xs text-slate-300">Versão 4.6 • Build 2026</p>
              </div>
         </div>
     </div>
@@ -1048,7 +1031,7 @@
                     <i data-lucide="cloud" class="h-6 w-6 text-indigo-400"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight text-white">NPS Cloud <span class="text-indigo-400 font-light">4.4</span></h1>
+                    <h1 class="text-xl font-bold tracking-tight text-white">NPS Cloud <span class="text-indigo-400 font-light">4.6</span></h1>
                     <p class="text-[10px] text-slate-400 flex items-center gap-1.5 uppercase tracking-wider font-semibold"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span> Online System</p>
                 </div>
             </div>
@@ -1112,15 +1095,18 @@
                 </div>
             </div>
             
+            <!-- Improcedentes KPI (Substitute) -->
             <div class="card-modern p-6 relative overflow-hidden group">
-                <div class="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-amber-50 to-transparent opacity-50"></div>
+                <div class="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-emerald-50 to-transparent opacity-50"></div>
                 <div class="flex justify-between items-start relative z-10">
-                    <div class="flex-1 min-w-0 pr-4">
-                        <p class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Principal Ofensor</p>
-                        <h3 class="text-xl font-bold text-slate-800 truncate leading-tight mt-1" id="kpi-offender-name">---</h3>
-                        <p class="text-xs text-slate-500 font-medium mt-1" id="kpi-offender-count">Sem dados</p>
+                    <div>
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Improcedentes</p>
+                        <div class="flex items-baseline gap-2">
+                             <h3 class="text-4xl font-extrabold text-emerald-600 tracking-tight" id="kpi-improcedente">0</h3>
+                             <span class="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-md" id="kpi-improcedente-pct">0%</span>
+                        </div>
                     </div>
-                    <div class="bg-amber-50 p-3 rounded-2xl text-amber-500 group-hover:scale-110 transition-transform flex-none"><i data-lucide="flag" class="h-6 w-6"></i></div>
+                    <div class="bg-emerald-50 p-3 rounded-2xl text-emerald-500 group-hover:scale-110 transition-transform"><i data-lucide="thumbs-up" class="h-6 w-6"></i></div>
                 </div>
             </div>
         </div>
