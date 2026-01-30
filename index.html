@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard NPS 4.7 - Gestão Eficiente</title>
+    <title>Dashboard NPS 4.9 - Gestão & Financeiro</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -164,6 +164,11 @@
             return 0; 
         }
         function getInitials(name) { return name ? name.substring(0,2).toUpperCase() : '--'; }
+        
+        // Formata Moeda (BRL)
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+        }
 
         function showToast(msg, type='info') {
             const container = document.getElementById('toast-container');
@@ -217,7 +222,7 @@
             npsData.sort((a, b) => {
                 let valA = a[sortConfig.key], valB = b[sortConfig.key];
                 if (sortConfig.key === 'data') { valA = parseDate(valA); valB = parseDate(valB); }
-                else if (['nota'].includes(sortConfig.key)) { valA = Number(valA)||0; valB = Number(valB)||0; }
+                else if (['nota', 'valorCusto'].includes(sortConfig.key)) { valA = Number(valA)||0; valB = Number(valB)||0; }
                 else { valA = (valA||'').toString().toLowerCase(); valB = (valB||'').toString().toLowerCase(); }
                 return sortConfig.direction === 'asc' ? (valA < valB ? -1 : 1) : (valA > valB ? -1 : 1);
             });
@@ -240,16 +245,19 @@
         function refreshKPIs() {
             const total = npsData.length;
             const procedentes = npsData.filter(d => d.status === 'Procedente').length;
-            const improcedentes = npsData.filter(d => d.status === 'Improcedente').length; // Nova Métrica
+            const improcedentes = npsData.filter(d => d.status === 'Improcedente').length;
+            
+            // Calculo de Custo Indevido
+            const totalCusto = npsData.reduce((acc, curr) => acc + (parseFloat(curr.valorCusto) || 0), 0);
 
             // KPI 1 & 2
             document.getElementById('kpi-total').textContent = total;
             document.getElementById('kpi-procedente').textContent = procedentes;
             document.getElementById('kpi-procedente-pct').textContent = total ? Math.round((procedentes/total)*100) + '%' : '0%';
             
-            // KPI 3: Improcedentes
-            document.getElementById('kpi-improcedente').textContent = improcedentes;
-            document.getElementById('kpi-improcedente-pct').textContent = total ? Math.round((improcedentes/total)*100) + '%' : '0%';
+            // KPI 3: Custo Indevido (NOVO)
+            document.getElementById('kpi-custo').textContent = formatCurrency(totalCusto);
+            document.getElementById('kpi-custo-count').textContent = npsData.filter(d => d.temCusto).length + ' casos';
         }
 
         function getFilteredData() {
@@ -288,7 +296,8 @@
         window.copySummary = function(id) {
             const d = npsData.find(i => i.firebaseId === id);
             if(!d) return;
-            const text = `*Resumo NPS #${d.assistencia}*\nPrestador: ${d.prestador}\nNota: ${d.nota}\nStatus: ${d.status}\nMotivo: ${d.motivo}\nAnalista: ${d.analista}\n\nObs: ${d.comentario}`;
+            const custoText = d.temCusto ? `\nCusto Indevido: ${formatCurrency(d.valorCusto)}` : '';
+            const text = `*Resumo NPS #${d.assistencia}*\nPrestador: ${d.prestador}\nNota: ${d.nota}\nStatus: ${d.status}\nMotivo: ${d.motivo}\nAção: ${d.acaoRede}${custoText}\n\nObs: ${d.comentario}`;
             navigator.clipboard.writeText(text).then(() => showToast("Resumo copiado!", "success"));
         };
 
@@ -321,6 +330,10 @@
                 if(row.nota < 7) noteClass = 'bg-rose-50 text-rose-600 border-rose-100';
                 else if (row.nota < 9) noteClass = 'bg-amber-50 text-amber-600 border-amber-100';
 
+                // Indicador de Custo na Tabela
+                let custoInd = '';
+                if(row.temCusto) custoInd = `<div class="mt-1 text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded inline-block border border-rose-100" title="Custo Indevido">${formatCurrency(row.valorCusto)}</div>`;
+
                 tr.innerHTML = `
                     <td class="p-4 text-center w-12"><input type="checkbox" class="custom-checkbox row-cb" data-id="${row.firebaseId}" ${isSel ? 'checked' : ''} onchange="window.toggleSelectRow('${row.firebaseId}')"></td>
                     <td class="p-4 font-semibold text-slate-700 whitespace-nowrap">
@@ -333,7 +346,8 @@
                     <td class="p-4"><span class="px-2.5 py-1 rounded-lg text-xs font-bold border ${noteClass}">${row.nota}</span></td>
                     <td class="p-4 text-slate-600 text-xs truncate max-w-[120px] font-medium" title="${row.cidade} - ${row.uf}">${row.cidade ? `${row.cidade}-${row.uf}` : '-'}</td>
                     <td class="p-4 text-slate-600 text-xs max-w-[180px] truncate" title="${row.fa || ''} ${row.prestador}">
-                        ${row.fa ? `<span class="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 mr-1">${row.fa}</span>` : ''} ${row.prestador}
+                        <div>${row.fa ? `<span class="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 mr-1">${row.fa}</span>` : ''} ${row.prestador}</div>
+                        ${custoInd}
                     </td>
                     <td class="p-4 text-slate-500 text-xs truncate max-w-[100px]">${row.tipoServico || '-'}</td>
                     <td class="p-4"><span class="px-3 py-1 rounded-full text-xs font-semibold border border-transparent ${statusClass}">${row.status}</span></td>
@@ -354,69 +368,53 @@
 
         // --- Gráficos (Otimizado: Top 5 + Outros) ---
         function refreshCharts() {
-            const m = {}; const p = {};
+            const m = {}; const p = {}; 
             
-            // FILTRAR APENAS PROCEDENTES PARA O GRÁFICO DE MOTIVOS
+            // 1. Dados para Motivos (Apenas Procedentes)
             const procedentesData = npsData.filter(d => d.status === 'Procedente');
-
-            // Normalizar os motivos para evitar duplicidade de strings sujas
-            // Usamos procedentesData aqui
             procedentesData.forEach(d => { 
                 const motivo = (d.motivo || 'Outros').trim();
                 m[motivo] = (m[motivo]||0)+1; 
             });
 
-            // Lógica Inteligente para Motivos (Pareto: Top 5 + Outros)
+            // Lógica Motivos
             const sortedMotivos = Object.entries(m).sort((a,b) => b[1] - a[1]);
             let finalMotivosLabels = [];
             let finalMotivosData = [];
             
-            // Pega os Top 5
-            const top5 = sortedMotivos.slice(0, 5);
-            top5.forEach(item => {
-                finalMotivosLabels.push(item[0]);
-                finalMotivosData.push(item[1]);
-            });
-
-            // Agrupa o restante em "Outros"
+            sortedMotivos.slice(0, 5).forEach(item => { finalMotivosLabels.push(item[0]); finalMotivosData.push(item[1]); });
             if (sortedMotivos.length > 5) {
-                const outrosCount = sortedMotivos.slice(5).reduce((acc, curr) => acc + curr[1], 0);
                 finalMotivosLabels.push('Outros (Diversos)');
-                finalMotivosData.push(outrosCount);
+                finalMotivosData.push(sortedMotivos.slice(5).reduce((acc, curr) => acc + curr[1], 0));
             }
 
-            // Bases Ofensoras (Também Procedentes - Já estava assim na lógica anterior mas reforçando)
+            // 2. Bases Ofensoras (Volume)
             procedentesData.forEach(d => { const prest = d.prestador || 'Desconhecido'; p[prest] = (p[prest]||0)+1; });
             const topP = Object.entries(p).sort((a,b) => b[1] - a[1]).slice(0, 10);
-            
-            // Cores Modernas
-            const colorMotivo = '#6366f1'; // Indigo 500
-            const colorPrestador = '#f43f5e'; // Rose 500
 
-            // Gráfico Horizontal Limpo (Motivos)
+            // Cores
+            const colorMotivo = '#6366f1'; 
+            const colorPrestador = '#f43f5e'; 
+
+            // Draw Charts
             drawChart('chartMotivos', 'bar', finalMotivosLabels, finalMotivosData, (i)=> { 
-                // Filtro especial para clicar em "Outros" não quebrar
                 const label = finalMotivosLabels[i];
-                if(label !== 'Outros (Diversos)') {
-                    activeChartFilter={type:'motivo',value:label}; 
-                    refreshTable(); 
-                } else {
-                    showToast("Filtre pela lista para ver detalhes de 'Outros'", "info");
-                }
+                if(label !== 'Outros (Diversos)') { activeChartFilter={type:'motivo',value:label}; refreshTable(); }
+                else showToast("Filtre pela lista para 'Outros'", "info");
             }, true, colorMotivo);
             
-            // Gráfico Vertical Bases Ofensoras
-            drawChart('chartPrestadores', 'bar', topP.map(e => e[0]), topP.map(e => e[1]), (i)=> { activeChartFilter={type:'prestador',value:topP[i][0]}; refreshTable(); }, false, colorPrestador);
+            drawChart('chartPrestadores', 'bar', topP.map(e => e[0]), topP.map(e => e[1]), (i)=> { 
+                activeChartFilter={type:'prestador',value:topP[i][0]}; refreshTable(); 
+            }, false, colorPrestador);
         }
 
-        function drawChart(id, t, l, d, cb, horiz = false, color = '#6366f1') {
+        function drawChart(id, t, l, d, cb, horiz = false, color = '#6366f1', prefix = '') {
             const cvs = document.getElementById(id); if(!cvs) return;
             if(chartInstances[id]) chartInstances[id].destroy();
             
             const valueAxis = horiz ? 'x' : 'y';
             const categoryAxis = horiz ? 'y' : 'x';
 
-            // Configuração do Chart.js com design mais limpo
             Chart.defaults.font.family = "'Inter', sans-serif";
             Chart.defaults.color = '#64748b';
 
@@ -425,10 +423,10 @@
                 data:{
                     labels:l,
                     datasets:[{
-                        label:'Qtd',
+                        label: prefix ? 'Valor' : 'Qtd',
                         data:d,
                         backgroundColor: color,
-                        hoverBackgroundColor: horiz ? '#4f46e5' : '#e11d48',
+                        hoverBackgroundColor: horiz ? '#4f46e5' : '#059669',
                         borderRadius: 6,
                         barPercentage: 0.6,
                         borderSkipped: false
@@ -449,7 +447,9 @@
                             displayColors: false,
                             callbacks: {
                                 label: function(context) {
-                                    return context.parsed.y !== null && !horiz ? parseInt(context.parsed.y) + ' casos' : parseInt(context.parsed.x) + ' casos';
+                                    let val = context.raw;
+                                    if(prefix === 'R$') return `Custo: ${formatCurrency(val)}`;
+                                    return `${val} casos`;
                                 }
                             }
                         }
@@ -459,11 +459,17 @@
                         [valueAxis]: {
                             beginAtZero: true,
                             grid: { borderDash: [4, 4], color: '#f1f5f9', drawBorder: false },
-                            ticks: { stepSize: 1, precision: 0, font: {size: 11} }
+                            ticks: { 
+                                font: {size: 11},
+                                callback: function(value) {
+                                    if(prefix === 'R$') return 'R$' + value;
+                                    return value;
+                                }
+                            }
                         },
                         [categoryAxis]: {
                             grid: { display: false, drawBorder: false },
-                            ticks: { autoSkip: false, font: {size: 11, weight: 500} } 
+                            ticks: { autoSkip: false, font: {size: 10, weight: 500} } 
                         }
                     }
                 }
@@ -492,6 +498,23 @@
         window.loadExistingForEdit = function(id) {
             window.closeModal('formModal');
             setTimeout(() => window.openFormModal(id), 200);
+        };
+
+        // Lógica de Toggle do Checkbox Custo
+        window.toggleCustoInput = function() {
+            const chk = document.getElementById('inpTemCusto');
+            const div = document.getElementById('divCustoValue');
+            const inp = document.getElementById('inpValorCusto');
+            
+            if (chk.checked) {
+                div.classList.remove('hidden');
+                div.classList.add('flex');
+                setTimeout(() => inp.focus(), 100);
+            } else {
+                div.classList.add('hidden');
+                div.classList.remove('flex');
+                inp.value = '';
+            }
         };
 
         function setupSmartAlerts() {
@@ -556,6 +579,8 @@
             document.getElementById('recordForm').reset();
             document.getElementById('formAlerts').innerHTML = '';
             document.getElementById('inpAnalista').value = currentAnalista;
+            // Reset Custo Logic
+            document.getElementById('divCustoValue').classList.add('hidden');
             window.selectProduct('');
             
             if(id) {
@@ -572,9 +597,18 @@
                     document.getElementById('inpUF').value = i.uf || '';
                     document.getElementById('inpStatus').value = i.status;
                     document.getElementById('inpMotivo').value = i.motivo;
-                    document.getElementById('inpVozCliente').value = i.vozDoCliente || ''; // Novo Campo
+                    document.getElementById('inpVozCliente').value = i.vozDoCliente || ''; 
                     document.getElementById('inpComentario').value = i.comentario;
-                    document.getElementById('inpAcao').value = i.acaoRede;
+                    document.getElementById('inpAcao').value = i.acaoRede; // Dropdown value
+                    
+                    // Custo Logic Load
+                    if(i.temCusto) {
+                        document.getElementById('inpTemCusto').checked = true;
+                        document.getElementById('inpValorCusto').value = i.valorCusto;
+                        document.getElementById('divCustoValue').classList.remove('hidden');
+                        document.getElementById('divCustoValue').classList.add('flex');
+                    }
+
                     window.selectProduct(i.produto || '');
                     document.getElementById('formModalTitle').innerHTML = `<i data-lucide="edit" class="h-4 w-4"></i> Editar Registro`;
                 }
@@ -590,6 +624,8 @@
         window.handleFormSubmit = async function(e) {
             e.preventDefault();
             const id = document.getElementById('firebaseId').value;
+            const hasCusto = document.getElementById('inpTemCusto').checked;
+
             const rec = {
                 assistencia: document.getElementById('inpAssistencia').value,
                 data: document.getElementById('inpData').value,
@@ -603,9 +639,12 @@
                 tipoServico: document.getElementById('inpTipoServico').value,
                 status: document.getElementById('inpStatus').value,
                 motivo: document.getElementById('inpMotivo').value,
-                vozDoCliente: document.getElementById('inpVozCliente').value, // Novo Campo
+                vozDoCliente: document.getElementById('inpVozCliente').value,
                 comentario: document.getElementById('inpComentario').value,
-                acaoRede: document.getElementById('inpAcao').value
+                acaoRede: document.getElementById('inpAcao').value,
+                // Novos Campos
+                temCusto: hasCusto,
+                valorCusto: hasCusto ? parseFloat(document.getElementById('inpValorCusto').value || 0) : 0
             };
             window.closeModal('formModal');
             try {
@@ -620,10 +659,8 @@
             r.onload = async function(evt) {
                 try {
                     const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
-                    // Adicionado { defval: "" } para garantir que linhas com células vazias não sejam ignoradas
                     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
                     
-                    // Log para depuração de contagem
                     console.log(`Linhas encontradas no Excel: ${rows.length}`);
                     
                     if(!rows.length) { showToast("Vazio.", "warning"); return; }
@@ -645,6 +682,8 @@
                             motivo: r.Motivo || r.motivo || "",
                             fa: r.FA || r.fa || "",
                             acaoRede: r.Acao || r.acao || "",
+                            temCusto: !!(r.CustoIndevido || r.temCusto),
+                            valorCusto: parseFloat(r.ValorCusto || r.valorCusto || 0),
                             createdAt: new Date().toISOString()
                         });
                     });
@@ -660,12 +699,29 @@
         window.exportToExcel = function() {
             if(!npsData.length) { showToast("Sem dados.", "warning"); return; }
             const exportData = npsData.map(d => ({
-                "ID Assistência": d.assistencia, "Data": d.data, "Nota NPS": d.nota, "Analista": d.analista, "Produto": d.produto, "Prestador": d.prestador, "Código FA": d.fa, "Cidade": d.cidade, "UF": d.uf, "Tipo de Serviço": d.tipoServico, "Status": d.status, "Motivo": d.motivo, "Ação na Rede": d.acaoRede, "Voz do Cliente": d.vozDoCliente, "Comentário Técnico": d.comentario, "Sinalizador de Risco": checkRisk(d.comentario) || checkRisk(d.vozDoCliente) ? "SIM" : "NÃO"
+                "ID Assistência": d.assistencia, 
+                "Data": d.data, 
+                "Nota NPS": d.nota, 
+                "Analista": d.analista, 
+                "Produto": d.produto, 
+                "Prestador": d.prestador, 
+                "Código FA": d.fa, 
+                "Cidade": d.cidade, 
+                "UF": d.uf, 
+                "Tipo de Serviço": d.tipoServico, 
+                "Status": d.status, 
+                "Motivo": d.motivo, 
+                "Ação na Rede": d.acaoRede, 
+                "Custo Indevido?": d.temCusto ? "SIM" : "NÃO",
+                "Valor Custo (R$)": d.valorCusto,
+                "Voz do Cliente": d.vozDoCliente, 
+                "Comentário Técnico": d.comentario, 
+                "Sinalizador de Risco": checkRisk(d.comentario) || checkRisk(d.vozDoCliente) ? "SIM" : "NÃO"
             }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Base NPS");
-            XLSX.writeFile(wb, "NPS_Exportacao_v4.3.xlsx");
+            XLSX.writeFile(wb, "NPS_Financeiro_Export_v4.8.xlsx");
             showToast("Download iniciado!", "success");
         };
 
@@ -719,6 +775,15 @@
                         <p class="font-medium text-slate-800">${i.analista}</p>
                     </div>
                 </div>
+
+                ${i.temCusto ? `
+                <div class="mb-6 bg-red-50 p-3 rounded-lg border border-red-100 flex items-center gap-3">
+                     <div class="bg-red-100 p-2 rounded-full"><i data-lucide="dollar-sign" class="h-4 w-4 text-red-600"></i></div>
+                     <div>
+                        <p class="text-[10px] text-red-400 font-bold uppercase tracking-wider">Custo Indevido</p>
+                        <p class="font-bold text-red-700 text-lg">${formatCurrency(i.valorCusto)}</p>
+                     </div>
+                </div>` : ''}
 
                 <div class="space-y-4">
                     <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50">
@@ -783,7 +848,6 @@
             const n = document.getElementById('loginName').value;
             const p = document.getElementById('loginPin').value;
             if(!n) return alert("Nome obrigatório");
-            // Simple PIN check for demo purposes
             if(p !== "1234") return alert("Pin incorreto (Dica: 1234)");
             
             currentAnalista = n;
@@ -848,7 +912,7 @@
              </div>
              
              <div class="mt-8 text-center">
-                <p class="text-xs text-slate-300">Versão 4.7 • Build 2026</p>
+                <p class="text-xs text-slate-300">Versão 4.9 • Build 2026</p>
              </div>
         </div>
     </div>
@@ -1015,9 +1079,35 @@
                     <textarea id="inpComentario" rows="3" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm resize-none focus:border-indigo-500 outline-none"></textarea>
                 </div>
                 
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Ação na Rede</label>
-                    <input type="text" id="inpAcao" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:border-indigo-500 outline-none">
+                <!-- Ação na Rede e Custos (Novo Bloco) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Ação na Rede</label>
+                        <select id="inpAcao" class="w-full border border-slate-200 p-2.5 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none">
+                            <option value="">Selecione...</option>
+                            <option value="Feedback">Feedback</option>
+                            <option value="Sem ação de rede">Sem ação de rede</option>
+                            <option value="Advertência">Advertência</option>
+                            <option value="Suspensão">Suspensão</option>
+                            <option value="Desligamento">Desligamento</option>
+                            <option value="Prospecção">Prospecção</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col justify-end pb-2">
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                             <input type="checkbox" id="inpTemCusto" onchange="toggleCustoInput()" class="custom-checkbox">
+                             <span class="text-sm font-bold text-slate-600 group-hover:text-indigo-600 transition-colors">Houve Custo Indevido?</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Campo Condicional de Custo -->
+                <div id="divCustoValue" class="hidden bg-rose-50 p-4 rounded-xl border border-rose-200 animate-fade-in flex-col">
+                    <label class="block text-xs font-bold text-rose-600 mb-1.5 uppercase ml-1">Valor do Custo (R$)</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-2.5 text-rose-400 font-bold text-sm">R$</span>
+                        <input type="number" id="inpValorCusto" step="0.01" min="0" placeholder="0,00" class="w-full pl-9 border border-rose-200 p-2.5 rounded-lg text-sm text-rose-700 font-bold focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none">
+                    </div>
                 </div>
                 
                 <div class="pt-2">
@@ -1038,7 +1128,7 @@
                     <i data-lucide="cloud" class="h-6 w-6 text-indigo-400"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight text-white">NPS Cloud <span class="text-indigo-400 font-light">4.7</span></h1>
+                    <h1 class="text-xl font-bold tracking-tight text-white">NPS Cloud <span class="text-indigo-400 font-light">4.9</span></h1>
                     <p class="text-[10px] text-slate-400 flex items-center gap-1.5 uppercase tracking-wider font-semibold"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span> Online System</p>
                 </div>
             </div>
@@ -1063,7 +1153,7 @@
         <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-6">
             <div>
                  <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-3"><i data-lucide="layout-dashboard" class="h-6 w-6 text-indigo-600"></i>Visão Estratégica</h2>
-                 <p class="text-sm text-slate-500 mt-1 pl-9">Monitoramento de qualidade e performance em tempo real.</p>
+                 <p class="text-sm text-slate-500 mt-1 pl-9">Monitoramento de qualidade e performance financeira.</p>
             </div>
             
             <div class="flex space-x-3 w-full md:w-auto bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200">
@@ -1102,36 +1192,36 @@
                 </div>
             </div>
             
-            <!-- Improcedentes KPI (Substitute) -->
-            <div class="card-modern p-6 relative overflow-hidden group">
-                <div class="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-emerald-50 to-transparent opacity-50"></div>
+            <!-- Custo Indevido KPI (Novo) -->
+            <div class="card-modern p-6 relative overflow-hidden group border-l-4 border-l-amber-500">
+                <div class="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-amber-50 to-transparent opacity-50"></div>
                 <div class="flex justify-between items-start relative z-10">
                     <div>
-                        <p class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Improcedentes</p>
-                        <div class="flex items-baseline gap-2">
-                             <h3 class="text-4xl font-extrabold text-emerald-600 tracking-tight" id="kpi-improcedente">0</h3>
-                             <span class="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-md" id="kpi-improcedente-pct">0%</span>
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Custos Indevidos</p>
+                        <div class="flex flex-col">
+                             <h3 class="text-3xl font-extrabold text-slate-700 tracking-tight truncate" id="kpi-custo">R$ 0,00</h3>
+                             <span class="text-xs font-bold text-amber-600 mt-1" id="kpi-custo-count">0 casos</span>
                         </div>
                     </div>
-                    <div class="bg-emerald-50 p-3 rounded-2xl text-emerald-500 group-hover:scale-110 transition-transform"><i data-lucide="thumbs-up" class="h-6 w-6"></i></div>
+                    <div class="bg-amber-50 p-3 rounded-2xl text-amber-600 group-hover:scale-110 transition-transform"><i data-lucide="dollar-sign" class="h-6 w-6"></i></div>
                 </div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <div class="card-modern p-6 flex flex-col">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-sm font-bold uppercase text-slate-500 tracking-wide flex items-center gap-2"><i data-lucide="bar-chart-2" class="h-4 w-4 text-indigo-500"></i> Top 5 Motivos (Procedentes)</h3>
-                    <button onclick="clearChartFilter()" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded transition-colors uppercase tracking-wide">Limpar Filtro</button>
+                    <h3 class="text-sm font-bold uppercase text-slate-500 tracking-wide flex items-center gap-2"><i data-lucide="bar-chart-2" class="h-4 w-4 text-indigo-500"></i> Motivos (Procedentes)</h3>
+                    <button onclick="clearChartFilter()" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded transition-colors uppercase tracking-wide">Limpar</button>
                 </div>
-                <div class="chart-container flex-grow" style="height: 280px;"><canvas id="chartMotivos"></canvas></div>
+                <div class="chart-container flex-grow" style="height: 220px;"><canvas id="chartMotivos"></canvas></div>
             </div>
             
             <div class="card-modern p-6 flex flex-col">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-sm font-bold uppercase text-slate-500 tracking-wide flex items-center gap-2"><i data-lucide="alert-octagon" class="h-4 w-4 text-rose-500"></i> Ofensores (Procedentes)</h3>
+                    <h3 class="text-sm font-bold uppercase text-slate-500 tracking-wide flex items-center gap-2"><i data-lucide="alert-octagon" class="h-4 w-4 text-rose-500"></i> Ofensores (Volume)</h3>
                 </div>
-                <div class="chart-container flex-grow" style="height: 280px;"><canvas id="chartPrestadores"></canvas></div>
+                <div class="chart-container flex-grow" style="height: 220px;"><canvas id="chartPrestadores"></canvas></div>
             </div>
         </div>
 
